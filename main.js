@@ -152,16 +152,20 @@ const protonMaterial = new THREE.MeshPhongMaterial({
     shininess: 100
 });
 
+// Velocity vectors for orbital mechanics
+const electronVelocity = new THREE.Vector3(0, 1.5, 0);
+const protonVelocity = new THREE.Vector3(0, -0.5, 0); // Heavier, slower
+
 // Electron: 4pi Möbius double-loop
 const electronGeometry = createMobiusDoubleLoopGeometry(5, 1.5, 16, 128);
 const electronMesh = new THREE.Mesh(electronGeometry, electronMaterial);
-electronMesh.position.set(-10, 0, 0);
+electronMesh.position.set(-20, 0, 0);
 scene.add(electronMesh);
 
 // Proton: (3,2)-trefoil knot
 const protonGeometry = createTrefoilKnotGeometry(6, 2, 128, 16, 3, 2);
 const protonMesh = new THREE.Mesh(protonGeometry, protonMaterial);
-protonMesh.position.set(10, 0, 0);
+protonMesh.position.set(20, 0, 0);
 scene.add(protonMesh);
 
 
@@ -263,33 +267,32 @@ function animate() {
     const attractionForce = distanceVector.normalize().multiplyScalar(casimirShadowForce * 0.05);
 
     // 3. Inertial Resistance (Helical Stretching)
-    // When subjected to acceleration (attractionForce), the track stretches helically,
-    // increasing resistance to further acceleration.
-    // Here we apply a simple damping factor proportional to the speed.
-
-    // Applying force to positions
-    electronMesh.position.add(attractionForce);
-    protonMesh.position.sub(attractionForce); // equal and opposite
+    // Here we map forces to velocities instead of positions for smooth orbital mechanics.
+    // The proton acts as the massive center, the electron orbits.
 
     // 4. Electromagnetism (Gauss Shell Illusion via RMS Radial Vectors)
-    // Effective charge is calculated by integrating RMS of internal radial vectors.
-    // Transverse vectors destructively interfere.
-    // The surviving inward radial flux mathematically projects the Gauss shell.
-    // Here we simulate the resulting Coulomb force mathematically.
+    const coulombForceMagnitude = (50.0) / (distanceSq + 0.1); // Scaled for visible orbit
+    const coulombForce = distanceVector.clone().normalize().multiplyScalar(coulombForceMagnitude);
 
-    const coulombForceMagnitude = (1.0 * 1.0) / (distanceSq + 0.1); // Proportional proxy
-    const coulombForce = distanceVector.clone().multiplyScalar(coulombForceMagnitude * 0.1);
+    // Total Acceleration = Gravity (Casimir Shadowing) + Electromagnetism (Gauss Shell)
+    const totalForce = attractionForce.clone().add(coulombForce);
 
-    // Apply Coulomb force (opposite charges attract)
-    electronMesh.position.add(coulombForce);
-    protonMesh.position.sub(coulombForce);
+    // Apply acceleration to velocities (F = ma proxy)
+    // Proton is effectively much more massive in this framework due to complex topology
+    const electronAcceleration = totalForce.clone().multiplyScalar(0.5);
+    const protonAcceleration = totalForce.clone().negate().multiplyScalar(0.01);
 
-    // Keep particles from merging completely for visualization purposes
-    if (distance < 12.0) {
-        const repulsion = distanceVector.clone().multiplyScalar(-0.5);
-        electronMesh.position.add(repulsion);
-        protonMesh.position.sub(repulsion);
-    }
+    electronVelocity.add(electronAcceleration);
+    protonVelocity.add(protonAcceleration);
+
+    // Apply velocities to positions
+    electronMesh.position.add(electronVelocity);
+    protonMesh.position.add(protonVelocity);
+
+    // Dynamic camera tracking to keep both in view
+    const centerPoint = new THREE.Vector3().addVectors(electronMesh.position, protonMesh.position).multiplyScalar(0.5);
+    camera.position.set(centerPoint.x, centerPoint.y, centerPoint.z + 80);
+    camera.lookAt(centerPoint);
 
     // Update Coulomb Arrow Visuals (Cyan)
     const coulombDir = distanceVector.clone().normalize();
