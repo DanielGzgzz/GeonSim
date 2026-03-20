@@ -98,15 +98,31 @@ function createMobiusDoubleLoopGeometry(radius, tube, radialSegments, tubularSeg
     const indices = [];
 
     for (let i = 0; i <= tubularSegments; i++) {
-        const u = (i / tubularSegments) * 2 * Math.PI * 2; // 4pi double loop
+        // u goes from 0 to 4π for the double loop path around the major radius
+        const u = (i / tubularSegments) * 4 * Math.PI;
 
         for (let j = 0; j <= radialSegments; j++) {
+            // v goes from 0 to 2π for the fully closed cross-sectional tube
             const v = (j / radialSegments) * 2 * Math.PI;
 
-            // Mobius transform
-            const x = (radius + tube * Math.cos(v / 2)) * Math.cos(u);
-            const y = (radius + tube * Math.cos(v / 2)) * Math.sin(u);
-            const z = tube * Math.sin(v / 2);
+            // Mobius strip parameterized as a 3D tube:
+            // To create the twist, the cross-section rotates by u/2 as it travels along u.
+            const twist = u / 2;
+
+            // Calculate cross-section coordinates local to the curve
+            const cx = tube * Math.cos(v);
+            const cy = tube * Math.sin(v);
+
+            // Apply the Möbius twist to the cross-section
+            const twistedX = cx * Math.cos(twist) - cy * Math.sin(twist);
+            const twistedY = cx * Math.sin(twist) + cy * Math.cos(twist);
+
+            // Map the twisted cross-section onto the major circular path (radius)
+            // Note: The strip's "flat" orientation twists, but since it's a tube,
+            // the entire tube cross-section twists along the path.
+            const x = (radius + twistedX) * Math.cos(u / 2); // Map 4pi u back to 2pi circular path mapping
+            const y = (radius + twistedX) * Math.sin(u / 2);
+            const z = twistedY;
 
             vertices.push(x, y, z);
         }
@@ -277,22 +293,34 @@ function animate() {
     // Total Acceleration = Gravity (Casimir Shadowing) + Electromagnetism (Gauss Shell)
     const totalForce = attractionForce.clone().add(coulombForce);
 
+    // Soft restoring force to keep particles from flying infinitely away
+    // Simulating bounding constraints of the observable vacuum simulation area
+    const centerForceElectron = electronMesh.position.clone().multiplyScalar(-0.005);
+    const centerForceProton = protonMesh.position.clone().multiplyScalar(-0.005);
+
     // Apply acceleration to velocities (F = ma proxy)
     // Proton is effectively much more massive in this framework due to complex topology
-    const electronAcceleration = totalForce.clone().multiplyScalar(0.5);
-    const protonAcceleration = totalForce.clone().negate().multiplyScalar(0.01);
+    const electronAcceleration = totalForce.clone().add(centerForceElectron).multiplyScalar(0.5);
+    const protonAcceleration = totalForce.clone().negate().add(centerForceProton).multiplyScalar(0.01);
 
     electronVelocity.add(electronAcceleration);
     protonVelocity.add(protonAcceleration);
+
+    // Mild damping (friction) to stabilize orbit and prevent chaotic jitter over time
+    electronVelocity.multiplyScalar(0.995);
+    protonVelocity.multiplyScalar(0.99);
 
     // Apply velocities to positions
     electronMesh.position.add(electronVelocity);
     protonMesh.position.add(protonVelocity);
 
-    // Dynamic camera tracking to keep both in view
-    const centerPoint = new THREE.Vector3().addVectors(electronMesh.position, protonMesh.position).multiplyScalar(0.5);
-    camera.position.set(centerPoint.x, centerPoint.y, centerPoint.z + 80);
-    camera.lookAt(centerPoint);
+    // Dynamic camera tracking using smooth lerping to prevent losing focus
+    const targetCenter = new THREE.Vector3().addVectors(electronMesh.position, protonMesh.position).multiplyScalar(0.5);
+    const targetCameraPos = new THREE.Vector3(targetCenter.x, targetCenter.y, targetCenter.z + 80);
+
+    // Smoothly interpolate camera position towards the target
+    camera.position.lerp(targetCameraPos, 0.05);
+    camera.lookAt(targetCenter);
 
     // Update Coulomb Arrow Visuals (Cyan)
     const coulombDir = distanceVector.clone().normalize();
