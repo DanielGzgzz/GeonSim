@@ -165,6 +165,59 @@ protonMesh.position.set(10, 0, 0);
 scene.add(protonMesh);
 
 
+// -----------------------------------------------------------------------------
+// Arrow Helpers for Visualizations
+// -----------------------------------------------------------------------------
+function createRadialVectors(mesh, color, count, directionSign, length) {
+    const helpers = [];
+    for (let i = 0; i < count; i++) {
+        const dir = new THREE.Vector3(
+            Math.cos(i / count * Math.PI * 2),
+            Math.sin(i / count * Math.PI * 2),
+            0
+        ).normalize().multiplyScalar(directionSign);
+        const origin = new THREE.Vector3(0, 0, 0); // Local to mesh
+        const arrow = new THREE.ArrowHelper(dir, origin, length, color, 0.5, 0.5);
+        helpers.push(arrow);
+        mesh.add(arrow);
+    }
+    return helpers;
+}
+
+// Visualizing forces directly attached to particles
+// Yellow: Casimir Vacuum Pressure (Inward)
+// Red: Centrifugal Momentum (Outward)
+// Magenta: Transverse/Radial Electric Vectors
+const electronCasimirArrows = createRadialVectors(electronMesh, 0xffff00, 8, -1, 4.0);
+const protonCasimirArrows = createRadialVectors(protonMesh, 0xffff00, 8, -1, 5.0);
+
+const electronCentrifArrows = createRadialVectors(electronMesh, 0xff0000, 8, 1, 4.0);
+const protonCentrifArrows = createRadialVectors(protonMesh, 0xff0000, 8, 1, 5.0);
+
+const electronElectricArrows = createRadialVectors(electronMesh, 0xff00ff, 12, -1, 6.0);
+const protonElectricArrows = createRadialVectors(protonMesh, 0xff00ff, 12, 1, 6.0);
+
+// Global Arrows for Coulomb interaction (Gauss shell projection)
+const coulombArrowElectron = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), electronMesh.position, 1, 0x00ffff, 1, 1);
+const coulombArrowProton = new THREE.ArrowHelper(new THREE.Vector3(-1,0,0), protonMesh.position, 1, 0x00ffff, 1, 1);
+scene.add(coulombArrowElectron);
+scene.add(coulombArrowProton);
+
+
+// DOM Elements for UI
+const valH = document.getElementById('val-h');
+const valC = document.getElementById('val-c');
+const valDist = document.getElementById('val-dist');
+const valCasimir = document.getElementById('val-casimir');
+const valShadow = document.getElementById('val-shadow');
+const valCentrifugal = document.getElementById('val-centrifugal');
+const valStretch = document.getElementById('val-stretch');
+const valCharge = document.getElementById('val-charge');
+
+// Initialize Constants on UI
+if(valH) valH.textContent = PLANCK_H.toExponential(3) + ' J⋅s';
+if(valC) valC.textContent = SPEED_OF_LIGHT.toExponential(3) + ' m/s';
+
 // Handle window resize
 window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -237,6 +290,38 @@ function animate() {
         electronMesh.position.add(repulsion);
         protonMesh.position.sub(repulsion);
     }
+
+    // Update Coulomb Arrow Visuals (Cyan)
+    const coulombDir = distanceVector.clone().normalize();
+    coulombArrowElectron.position.copy(electronMesh.position);
+    coulombArrowElectron.setDirection(coulombDir);
+    coulombArrowElectron.setLength(Math.max(1, coulombForceMagnitude * 50));
+
+    coulombArrowProton.position.copy(protonMesh.position);
+    coulombArrowProton.setDirection(coulombDir.clone().negate());
+    coulombArrowProton.setLength(Math.max(1, coulombForceMagnitude * 50));
+
+    // Update UI Panel Real-Time Metrics
+    if(valDist) valDist.textContent = distance.toFixed(2);
+
+    // Casimir vacuum pressure vs outward centrifugal momentum balances the "mass"
+    const casimirPressure = 100 / (radiusEProxy = 5); // Simplification for UI
+    const centrifugalMom = Math.pow(internalSpeedProxy, 2) / 5;
+
+    if(valCasimir) valCasimir.textContent = casimirPressure.toFixed(2) + " units";
+    if(valCentrifugal) valCentrifugal.textContent = centrifugalMom.toFixed(2) + " units";
+
+    // Shadowing and inertial resistance
+    if(valShadow) valShadow.textContent = casimirShadowForce.toFixed(4) + " units";
+
+    // Inertial helical stretch proxy: proportional to combined acceleration forces
+    const acceleration = attractionForce.length() + coulombForce.length();
+    if(valStretch) valStretch.textContent = (acceleration * 100).toFixed(4) + " λ";
+
+    // Effective RMS charge integration proxy
+    // Root mean square of internal varying radial vectors projecting the Gauss Shell
+    const rmsCharge = Math.sqrt(Math.pow(coulombForceMagnitude, 2) / 2);
+    if(valCharge) valCharge.textContent = rmsCharge.toFixed(4) + " E_rms";
 
     renderer.render(scene, camera);
 }

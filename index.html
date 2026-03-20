@@ -5,13 +5,51 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Topological Geon Physics Engine</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: monospace; color: #0f0; }
+        canvas { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #ui-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(0, 20, 0, 0.8);
+            border: 1px solid #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            width: 350px;
+            pointer-events: none;
+        }
+        h2 { margin-top: 0; font-size: 1.2em; text-align: center; border-bottom: 1px solid #0f0; padding-bottom: 5px; }
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .data-label { font-weight: bold; }
+        .legend { margin-top: 10px; font-size: 0.9em; color: #aaa; border-top: 1px dashed #0f0; padding-top: 5px; }
+        .legend span { display: inline-block; width: 10px; height: 10px; margin-right: 5px; }
     </style>
     <!-- Include Three.js from a CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
+    <div id="ui-panel">
+        <h2>Topological Geon Diagnostics</h2>
+        <div class="data-row"><span class="data-label">Vacuum Kinematic Action (h):</span> <span id="val-h"></span></div>
+        <div class="data-row"><span class="data-label">Internal Wave Velocity (c):</span> <span id="val-c"></span></div>
+        <div class="data-row"><span class="data-label">Distance (r):</span> <span id="val-dist"></span></div>
+        <br>
+        <div class="data-row"><span class="data-label">Casimir Vacuum Pressure:</span> <span id="val-casimir"></span></div>
+        <div class="data-row"><span class="data-label">Geometric Shadowing Force:</span> <span id="val-shadow"></span></div>
+        <br>
+        <div class="data-row"><span class="data-label">Centrifugal Momentum:</span> <span id="val-centrifugal"></span></div>
+        <div class="data-row"><span class="data-label">Inertial Helical Stretch:</span> <span id="val-stretch"></span></div>
+        <br>
+        <div class="data-row"><span class="data-label">Effective Charge (E_rms):</span> <span id="val-charge"></span></div>
+
+        <div class="legend">
+            <div><span style="background: yellow;"></span> Casimir Pressure (Inward)</div>
+            <div><span style="background: red;"></span> Centrifugal Momentum (Outward)</div>
+            <div><span style="background: magenta;"></span> Electric Radial Vectors</div>
+            <div><span style="background: cyan;"></span> Gauss Shell (Coulomb Force)</div>
+        </div>
+    </div>
     <script src="main.js"></script>
 </body>
 </html>
