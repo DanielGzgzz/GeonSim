@@ -192,10 +192,19 @@ const BOHR_RADIUS_PROXY = 40.0;
 electronMesh.position.set(BOHR_RADIUS_PROXY, 0, 0);
 scene.add(electronMesh);
 
-// Velocity vectors for a stable Hydrogen orbit
-// To achieve a stable circular orbit: v = sqrt(G*M / r) (using our proxy forces)
-// We will tune this empirically for a pleasing WebGL visualization.
-const initialOrbitalSpeed = 1.1;
+// -----------------------------------------------------------------------------
+// Stable Hydrogen Orbit Mathematics
+// -----------------------------------------------------------------------------
+// We need to perfectly balance the inward centripetal force with the required orbital velocity.
+// Inward Coulomb Force Proxy F_c = k / r^2
+const COULOMB_FORCE_CONSTANT = 400.0; // Scaled up to lock the orbit tightly
+const GRAVITY_CONSTANT = 0.5;
+
+// Required orbital velocity for a circular orbit: v = sqrt(F_inward * r / m)
+// At BOHR_RADIUS_PROXY (40.0), F_inward = COULOMB_FORCE_CONSTANT / 40.0^2 = 400 / 1600 = 0.25
+// v = sqrt(0.25 * 40.0 / 1.0) = sqrt(10) ≈ 3.16
+const initialOrbitalSpeed = Math.sqrt((COULOMB_FORCE_CONSTANT / Math.pow(BOHR_RADIUS_PROXY, 2)) * BOHR_RADIUS_PROXY);
+
 const electronVelocity = new THREE.Vector3(0, initialOrbitalSpeed, 0);
 const protonVelocity = new THREE.Vector3(0, -initialOrbitalSpeed * (ELECTRON_MASS_PROXY / PROTON_MASS_PROXY), 0);
 
@@ -329,27 +338,30 @@ function animate() {
 
     // Electromagnetism (Gauss Shell Illusion via RMS Radial Vectors)
     // The Coulomb force proxy (inward radial flux projection)
-    const coulombForceMagnitude = (50.0) / (distanceSq + 0.1);
+    // Using distanceSq instead of distance prevents the math from exploding, but we must use the configured constant.
+    const coulombForceMagnitude = COULOMB_FORCE_CONSTANT / (distanceSq + 0.1);
     const coulombForce = distanceVector.clone().normalize().multiplyScalar(coulombForceMagnitude);
 
     // Gravity (Mutual Casimir Shadowing)
-    const gravityMagnitude = (0.5) / (distanceSq + 0.1);
+    const gravityMagnitude = GRAVITY_CONSTANT / (distanceSq + 0.1);
     const gravityForce = distanceVector.clone().normalize().multiplyScalar(gravityMagnitude);
 
     // -------------------------------------------------------------------------
     // Pilot-Wave Resonant Steering (Probabilistic but Deterministic Cloud)
     // -------------------------------------------------------------------------
-    // The electron is steered deterministically by its extended vector potential
-    // resonating with the proton's geometry. We model this as a transverse perturbation
-    // that causes deterministic orbital precession (wobble).
-    // This makes the 1D path sweep out a 3D "probability shell" over time.
-    const pilotWaveResonance = new THREE.Vector3(
-        Math.sin(time * 0.7) * 0.05,
-        Math.cos(time * 0.5) * 0.05,
-        Math.sin(time * 1.3) * 0.05
-    );
+    // The electron is steered deterministically by its extended vector potential.
+    // To prevent the orbit from exploding into deep space, the wobble MUST strictly be
+    // tangential/transverse to the radius vector, NOT radial.
+    // We compute a stable transverse wobble using cross products.
+    const radialDir = distanceVector.clone().normalize();
+    const tangentialDir = electronVelocity.clone().normalize();
+    const transverseDir = new THREE.Vector3().crossVectors(radialDir, tangentialDir).normalize();
 
-    // Total Attractive Force + Pilot Wave Steering
+    // Apply a slowly oscillating perturbation along the transverse axis
+    const wobbleStrength = Math.sin(time * 0.5) * 0.1;
+    const pilotWaveResonance = transverseDir.multiplyScalar(wobbleStrength);
+
+    // Total Acceleration Force
     const totalForce = coulombForce.clone().add(gravityForce).add(pilotWaveResonance);
 
     // Apply acceleration to velocities (a = F/m proxy)
@@ -374,11 +386,13 @@ function animate() {
     electronCloud.geometry.attributes.position.needsUpdate = true;
 
     // Dynamic camera tracking: Focus primarily on the massive Proton core,
-    // but pull back enough to see the orbiting Electron.
-    const cameraDistance = Math.max(80, distance * 1.5);
-    const targetCameraPos = new THREE.Vector3(protonMesh.position.x, protonMesh.position.y, protonMesh.position.z + cameraDistance);
+    // but pull back enough to see the orbiting Electron. We clamp it so it never flies away.
+    const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
+    const cameraDistance = clamp(distance * 1.8, 60, 150);
 
-    camera.position.lerp(targetCameraPos, 0.05);
+    // Slow, stable camera tracking
+    const targetCameraPos = new THREE.Vector3(protonMesh.position.x, protonMesh.position.y, protonMesh.position.z + cameraDistance);
+    camera.position.lerp(targetCameraPos, 0.02);
     camera.lookAt(protonMesh.position);
 
     // Update Coulomb Arrow Visuals (Cyan)
@@ -392,22 +406,26 @@ function animate() {
     coulombArrowProton.setLength(Math.max(1, coulombForceMagnitude * 30));
 
     // Update UI Panel Real-Time Metrics
-    if(valVel) valVel.textContent = electronVelocity.length().toFixed(4) + " units/s";
-    if(valDist) valDist.textContent = distance.toFixed(2);
+    if(valVel) valVel.textContent = electronVelocity.length().toFixed(4) + " c_proxy";
+
+    // Convert WebGL distance (40 proxy) to realistic pm (picometers) proxy. (Bohr radius ~53pm)
+    const distancePm = distance * (53.0 / BOHR_RADIUS_PROXY);
+    if(valDist) valDist.textContent = distancePm.toFixed(2) + " pm";
 
     // Casimir vacuum pressure vs outward centrifugal momentum balances the "mass"
-    const casimirPressure = 100 / (radiusEProxy = 5); // Simplification for UI
+    const radiusEProxy = 5;
+    const casimirPressure = 178700 * (5 / distance); // N proxy
     const centrifugalMom = Math.pow(internalSpeedProxy, 2) / 5;
 
-    if(valCasimir) valCasimir.textContent = casimirPressure.toFixed(2) + " units";
-    if(valCentrifugal) valCentrifugal.textContent = centrifugalMom.toFixed(2) + " units";
+    if(valCasimir) valCasimir.textContent = casimirPressure.toFixed(0) + " N";
+    if(valCentrifugal) valCentrifugal.textContent = centrifugalMom.toFixed(4) + " kg·m/s";
 
     // Shadowing and inertial resistance
-    if(valShadow) valShadow.textContent = casimirShadowForce.toFixed(4) + " units";
+    if(valShadow) valShadow.textContent = casimirShadowForce.toFixed(4) + " N";
 
     // Inertial helical stretch proxy: proportional to combined acceleration forces
     const acceleration = attractionForce.length() + coulombForce.length();
-    if(valStretch) valStretch.textContent = (acceleration * 100).toFixed(4) + " λ";
+    if(valStretch) valStretch.textContent = (acceleration * 10).toFixed(4) + " λ";
 
     // Effective RMS charge integration proxy
     // Root mean square of internal varying radial vectors projecting the Gauss Shell
