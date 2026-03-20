@@ -168,20 +168,20 @@ const protonMaterial = new THREE.MeshPhongMaterial({
     shininess: 100
 });
 
-// Velocity vectors for orbital mechanics
-const electronVelocity = new THREE.Vector3(0, 1.5, 0);
-const protonVelocity = new THREE.Vector3(0, -0.5, 0); // Heavier, slower
+// Velocity vectors for orbital mechanics (Slowed down for clearer visualization)
+const electronVelocity = new THREE.Vector3(0, 0.6, 0);
+const protonVelocity = new THREE.Vector3(0, -0.2, 0); // Heavier, slower
 
-// Electron: 4pi Möbius double-loop
-const electronGeometry = createMobiusDoubleLoopGeometry(5, 1.5, 16, 128);
+// Electron: 4pi Möbius double-loop (Scaled down to fit nicely in view)
+const electronGeometry = createMobiusDoubleLoopGeometry(3.5, 0.8, 16, 128);
 const electronMesh = new THREE.Mesh(electronGeometry, electronMaterial);
-electronMesh.position.set(-20, 0, 0);
+electronMesh.position.set(-15, 0, 0);
 scene.add(electronMesh);
 
 // Proton: (3,2)-trefoil knot
-const protonGeometry = createTrefoilKnotGeometry(6, 2, 128, 16, 3, 2);
+const protonGeometry = createTrefoilKnotGeometry(4.5, 1.2, 128, 16, 3, 2);
 const protonMesh = new THREE.Mesh(protonGeometry, protonMaterial);
-protonMesh.position.set(20, 0, 0);
+protonMesh.position.set(15, 0, 0);
 scene.add(protonMesh);
 
 
@@ -197,7 +197,8 @@ function createRadialVectors(mesh, color, count, directionSign, length) {
             0
         ).normalize().multiplyScalar(directionSign);
         const origin = new THREE.Vector3(0, 0, 0); // Local to mesh
-        const arrow = new THREE.ArrowHelper(dir, origin, length, color, 0.5, 0.5);
+        // Thin out the arrows for a cleaner aesthetic
+        const arrow = new THREE.ArrowHelper(dir, origin, length, color, 0.3, 0.3);
         helpers.push(arrow);
         mesh.add(arrow);
     }
@@ -208,14 +209,14 @@ function createRadialVectors(mesh, color, count, directionSign, length) {
 // Yellow: Casimir Vacuum Pressure (Inward)
 // Red: Centrifugal Momentum (Outward)
 // Magenta: Transverse/Radial Electric Vectors
-const electronCasimirArrows = createRadialVectors(electronMesh, 0xffff00, 8, -1, 4.0);
-const protonCasimirArrows = createRadialVectors(protonMesh, 0xffff00, 8, -1, 5.0);
+const electronCasimirArrows = createRadialVectors(electronMesh, 0xffff00, 6, -1, 2.5);
+const protonCasimirArrows = createRadialVectors(protonMesh, 0xffff00, 6, -1, 3.5);
 
-const electronCentrifArrows = createRadialVectors(electronMesh, 0xff0000, 8, 1, 4.0);
-const protonCentrifArrows = createRadialVectors(protonMesh, 0xff0000, 8, 1, 5.0);
+const electronCentrifArrows = createRadialVectors(electronMesh, 0xff0000, 6, 1, 2.5);
+const protonCentrifArrows = createRadialVectors(protonMesh, 0xff0000, 6, 1, 3.5);
 
-const electronElectricArrows = createRadialVectors(electronMesh, 0xff00ff, 12, -1, 6.0);
-const protonElectricArrows = createRadialVectors(protonMesh, 0xff00ff, 12, 1, 6.0);
+const electronElectricArrows = createRadialVectors(electronMesh, 0xff00ff, 8, -1, 4.0);
+const protonElectricArrows = createRadialVectors(protonMesh, 0xff00ff, 8, 1, 4.0);
 
 // Global Arrows for Coulomb interaction (Gauss shell projection)
 const coulombArrowElectron = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), electronMesh.position, 1, 0x00ffff, 1, 1);
@@ -227,6 +228,7 @@ scene.add(coulombArrowProton);
 // DOM Elements for UI
 const valH = document.getElementById('val-h');
 const valC = document.getElementById('val-c');
+const valVel = document.getElementById('val-vel');
 const valDist = document.getElementById('val-dist');
 const valCasimir = document.getElementById('val-casimir');
 const valShadow = document.getElementById('val-shadow');
@@ -261,7 +263,8 @@ function animate() {
 
     // 1. Internal wave propagation strictly fixed to c (simulated rotation)
     // The visual rotation speed is a proxy for the internal light speed looping.
-    const internalSpeedProxy = 1.0;
+    // Slowed down proxy for clearer visual inspection of geometries
+    const internalSpeedProxy = 0.4;
 
     // Electron rotation (4pi loop)
     electronMesh.rotation.y = time * internalSpeedProxy;
@@ -316,7 +319,7 @@ function animate() {
 
     // Dynamic camera tracking using smooth lerping to prevent losing focus
     const targetCenter = new THREE.Vector3().addVectors(electronMesh.position, protonMesh.position).multiplyScalar(0.5);
-    const targetCameraPos = new THREE.Vector3(targetCenter.x, targetCenter.y, targetCenter.z + 80);
+    const targetCameraPos = new THREE.Vector3(targetCenter.x, targetCenter.y, targetCenter.z + 50); // Move camera closer
 
     // Smoothly interpolate camera position towards the target
     camera.position.lerp(targetCameraPos, 0.05);
@@ -326,13 +329,14 @@ function animate() {
     const coulombDir = distanceVector.clone().normalize();
     coulombArrowElectron.position.copy(electronMesh.position);
     coulombArrowElectron.setDirection(coulombDir);
-    coulombArrowElectron.setLength(Math.max(1, coulombForceMagnitude * 50));
+    coulombArrowElectron.setLength(Math.max(1, coulombForceMagnitude * 30));
 
     coulombArrowProton.position.copy(protonMesh.position);
     coulombArrowProton.setDirection(coulombDir.clone().negate());
-    coulombArrowProton.setLength(Math.max(1, coulombForceMagnitude * 50));
+    coulombArrowProton.setLength(Math.max(1, coulombForceMagnitude * 30));
 
     // Update UI Panel Real-Time Metrics
+    if(valVel) valVel.textContent = electronVelocity.length().toFixed(4) + " units/s";
     if(valDist) valDist.textContent = distance.toFixed(2);
 
     // Casimir vacuum pressure vs outward centrifugal momentum balances the "mass"
