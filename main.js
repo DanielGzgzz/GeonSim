@@ -168,21 +168,61 @@ const protonMaterial = new THREE.MeshPhongMaterial({
     shininess: 100
 });
 
-// Velocity vectors for orbital mechanics (Slowed down for clearer visualization)
-const electronVelocity = new THREE.Vector3(0, 0.6, 0);
-const protonVelocity = new THREE.Vector3(0, -0.2, 0); // Heavier, slower
+// -----------------------------------------------------------------------------
+// Hydrogen Atom Model (Topological Geon Framework)
+// -----------------------------------------------------------------------------
 
-// Electron: 4pi Möbius double-loop (Scaled down to fit nicely in view)
-const electronGeometry = createMobiusDoubleLoopGeometry(3.5, 0.8, 16, 128);
+// Proton is roughly 1836 times more massive than an electron.
+// In this topological framework, mass is the geometric surface tension confining the light.
+// We scale the proton to be visually dominant and central, while the electron orbits.
+const PROTON_MASS_PROXY = 1836.0;
+const ELECTRON_MASS_PROXY = 1.0;
+
+// The Proton: A dense, self-intersecting (3,2)-trefoil knot
+const protonGeometry = createTrefoilKnotGeometry(6.0, 1.8, 256, 32, 3, 2);
+const protonMesh = new THREE.Mesh(protonGeometry, protonMaterial);
+protonMesh.position.set(0, 0, 0); // Proton sits at the origin
+scene.add(protonMesh);
+
+// The Electron: A continuous 4pi Möbius double-loop
+const electronGeometry = createMobiusDoubleLoopGeometry(2.0, 0.5, 16, 128);
 const electronMesh = new THREE.Mesh(electronGeometry, electronMaterial);
-electronMesh.position.set(-15, 0, 0);
+// Start the electron at a "Bohr radius" proxy distance
+const BOHR_RADIUS_PROXY = 40.0;
+electronMesh.position.set(BOHR_RADIUS_PROXY, 0, 0);
 scene.add(electronMesh);
 
-// Proton: (3,2)-trefoil knot
-const protonGeometry = createTrefoilKnotGeometry(4.5, 1.2, 128, 16, 3, 2);
-const protonMesh = new THREE.Mesh(protonGeometry, protonMaterial);
-protonMesh.position.set(15, 0, 0);
-scene.add(protonMesh);
+// Velocity vectors for a stable Hydrogen orbit
+// To achieve a stable circular orbit: v = sqrt(G*M / r) (using our proxy forces)
+// We will tune this empirically for a pleasing WebGL visualization.
+const initialOrbitalSpeed = 1.1;
+const electronVelocity = new THREE.Vector3(0, initialOrbitalSpeed, 0);
+const protonVelocity = new THREE.Vector3(0, -initialOrbitalSpeed * (ELECTRON_MASS_PROXY / PROTON_MASS_PROXY), 0);
+
+// Electron Trail Cloud (Macroscopic Vector Potential Field / Probability Cloud Proxy)
+// The 2013 quantum microscope image of Hydrogen shows a "probability cloud".
+// We simulate this deterministically by rendering the time-averaged path history
+// of the electron using a large particle system.
+const cloudLength = 3000;
+const cloudPositions = new Float32Array(cloudLength * 3);
+// Initialize all points off-screen or at origin
+for(let i=0; i<cloudLength*3; i++) cloudPositions[i] = 10000;
+
+const cloudGeometry = new THREE.BufferGeometry();
+cloudGeometry.setAttribute('position', new THREE.BufferAttribute(cloudPositions, 3));
+
+// We use Points instead of a continuous Line to prevent drawing massive artifacts
+// across the screen and to better simulate a cumulative density "cloud"
+const cloudMaterial = new THREE.PointsMaterial({
+    color: 0x00ffff,
+    size: 0.5,
+    transparent: true,
+    opacity: 0.4,
+    blending: THREE.AdditiveBlending
+});
+const electronCloud = new THREE.Points(cloudGeometry, cloudMaterial);
+scene.add(electronCloud);
+let cloudIndex = 0;
 
 
 // -----------------------------------------------------------------------------
@@ -285,45 +325,61 @@ function animate() {
     const casimirShadowForce = (5.0 * 6.0) / (distanceSq + 0.1);
     const attractionForce = distanceVector.normalize().multiplyScalar(casimirShadowForce * 0.05);
 
-    // 3. Inertial Resistance (Helical Stretching)
-    // Here we map forces to velocities instead of positions for smooth orbital mechanics.
-    // The proton acts as the massive center, the electron orbits.
+    // 3. Mechanical Origin of Forces (Hydrogen Orbit)
 
-    // 4. Electromagnetism (Gauss Shell Illusion via RMS Radial Vectors)
-    const coulombForceMagnitude = (50.0) / (distanceSq + 0.1); // Scaled for visible orbit
+    // Electromagnetism (Gauss Shell Illusion via RMS Radial Vectors)
+    // The Coulomb force proxy (inward radial flux projection)
+    const coulombForceMagnitude = (50.0) / (distanceSq + 0.1);
     const coulombForce = distanceVector.clone().normalize().multiplyScalar(coulombForceMagnitude);
 
-    // Total Acceleration = Gravity (Casimir Shadowing) + Electromagnetism (Gauss Shell)
-    const totalForce = attractionForce.clone().add(coulombForce);
+    // Gravity (Mutual Casimir Shadowing)
+    const gravityMagnitude = (0.5) / (distanceSq + 0.1);
+    const gravityForce = distanceVector.clone().normalize().multiplyScalar(gravityMagnitude);
 
-    // Soft restoring force to keep particles from flying infinitely away
-    // Simulating bounding constraints of the observable vacuum simulation area
-    const centerForceElectron = electronMesh.position.clone().multiplyScalar(-0.005);
-    const centerForceProton = protonMesh.position.clone().multiplyScalar(-0.005);
+    // -------------------------------------------------------------------------
+    // Pilot-Wave Resonant Steering (Probabilistic but Deterministic Cloud)
+    // -------------------------------------------------------------------------
+    // The electron is steered deterministically by its extended vector potential
+    // resonating with the proton's geometry. We model this as a transverse perturbation
+    // that causes deterministic orbital precession (wobble).
+    // This makes the 1D path sweep out a 3D "probability shell" over time.
+    const pilotWaveResonance = new THREE.Vector3(
+        Math.sin(time * 0.7) * 0.05,
+        Math.cos(time * 0.5) * 0.05,
+        Math.sin(time * 1.3) * 0.05
+    );
 
-    // Apply acceleration to velocities (F = ma proxy)
-    // Proton is effectively much more massive in this framework due to complex topology
-    const electronAcceleration = totalForce.clone().add(centerForceElectron).multiplyScalar(0.5);
-    const protonAcceleration = totalForce.clone().negate().add(centerForceProton).multiplyScalar(0.01);
+    // Total Attractive Force + Pilot Wave Steering
+    const totalForce = coulombForce.clone().add(gravityForce).add(pilotWaveResonance);
+
+    // Apply acceleration to velocities (a = F/m proxy)
+    // Proton is 1836x more massive, so it accelerates much less.
+    const electronAcceleration = totalForce.clone().multiplyScalar(1.0 / ELECTRON_MASS_PROXY);
+    const protonAcceleration = totalForce.clone().negate().multiplyScalar(1.0 / PROTON_MASS_PROXY);
 
     electronVelocity.add(electronAcceleration);
     protonVelocity.add(protonAcceleration);
 
-    // Mild damping (friction) to stabilize orbit and prevent chaotic jitter over time
-    electronVelocity.multiplyScalar(0.995);
-    protonVelocity.multiplyScalar(0.99);
-
-    // Apply velocities to positions
+    // Apply velocities to positions (Kinematics)
     electronMesh.position.add(electronVelocity);
     protonMesh.position.add(protonVelocity);
 
-    // Dynamic camera tracking using smooth lerping to prevent losing focus
-    const targetCenter = new THREE.Vector3().addVectors(electronMesh.position, protonMesh.position).multiplyScalar(0.5);
-    const targetCameraPos = new THREE.Vector3(targetCenter.x, targetCenter.y, targetCenter.z + 50); // Move camera closer
+    // Update Electron Probability Cloud Trail
+    const positions = electronCloud.geometry.attributes.position.array;
+    positions[cloudIndex * 3] = electronMesh.position.x;
+    positions[cloudIndex * 3 + 1] = electronMesh.position.y;
+    positions[cloudIndex * 3 + 2] = electronMesh.position.z;
 
-    // Smoothly interpolate camera position towards the target
+    cloudIndex = (cloudIndex + 1) % cloudLength;
+    electronCloud.geometry.attributes.position.needsUpdate = true;
+
+    // Dynamic camera tracking: Focus primarily on the massive Proton core,
+    // but pull back enough to see the orbiting Electron.
+    const cameraDistance = Math.max(80, distance * 1.5);
+    const targetCameraPos = new THREE.Vector3(protonMesh.position.x, protonMesh.position.y, protonMesh.position.z + cameraDistance);
+
     camera.position.lerp(targetCameraPos, 0.05);
-    camera.lookAt(targetCenter);
+    camera.lookAt(protonMesh.position);
 
     // Update Coulomb Arrow Visuals (Cyan)
     const coulombDir = distanceVector.clone().normalize();
