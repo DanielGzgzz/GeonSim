@@ -85,190 +85,78 @@ vacuumPlane.position.z = -50;
 scene.add(vacuumPlane);
 
 // -----------------------------------------------------------------------------
-// Particle Topologies (Geons)
+// Independent Wave Simulators (Topological Geons)
 // -----------------------------------------------------------------------------
+// Particles are NOT rigid bodies. They are emergent structures comprised of independent
+// light waves circulating and constructively interfering along topological paths.
+// We model each "geon" dynamically using an array of independent waves (spheres)
+// governed by strict parametric topologies.
 
-// Parametric Geometry requires an explicit function
-// For Three.js r128, ParametricGeometry is available but sometimes in examples.
-// We will construct standard BufferGeometry using parametric calculations.
-
-function createMobiusDoubleLoopGeometry(radius, tube, radialSegments, tubularSegments) {
-    const geometry = new THREE.BufferGeometry();
-    const vertices = [];
-    const indices = [];
-    const uvs = [];
-
-    for (let i = 0; i <= tubularSegments; i++) {
-        // u goes from 0 to 4π for the double loop path around the major radius
-        const u = (i / tubularSegments) * 4 * Math.PI;
-
-        for (let j = 0; j <= radialSegments; j++) {
-            // v goes from 0 to 2π for the fully closed cross-sectional tube
-            const v = (j / radialSegments) * 2 * Math.PI;
-
-            // Mobius strip parameterized as a 3D tube:
-            // To create the twist, the cross-section rotates by u/2 as it travels along u.
-            const twist = u / 2;
-
-            // Calculate cross-section coordinates local to the curve
-            const cx = tube * Math.cos(v);
-            const cy = tube * Math.sin(v);
-
-            // Apply the Möbius twist to the cross-section
-            const twistedX = cx * Math.cos(twist) - cy * Math.sin(twist);
-            const twistedY = cx * Math.sin(twist) + cy * Math.cos(twist);
-
-            // Map the twisted cross-section onto the major circular path (radius)
-            // Note: The strip's "flat" orientation twists, but since it's a tube,
-            // the entire tube cross-section twists along the path.
-            const x = (radius + twistedX) * Math.cos(u / 2); // Map 4pi u back to 2pi circular path mapping
-            const y = (radius + twistedX) * Math.sin(u / 2);
-            const z = twistedY;
-
-            vertices.push(x, y, z);
-
-            // Output UVs so shaders can map gradients along the 4pi tube
-            uvs.push(i / tubularSegments, j / radialSegments);
-        }
-    }
-
-    // Generate indices
-    for (let i = 0; i < tubularSegments; i++) {
-        for (let j = 0; j < radialSegments; j++) {
-            const a = i * (radialSegments + 1) + j;
-            const b = (i + 1) * (radialSegments + 1) + j;
-            const c = (i + 1) * (radialSegments + 1) + (j + 1);
-            const d = i * (radialSegments + 1) + (j + 1);
-
-            indices.push(a, b, d);
-            indices.push(b, c, d);
-        }
-    }
-
-    geometry.setIndex(indices);
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geometry.computeVertexNormals();
-    return geometry;
-}
-
-function createTrefoilKnotGeometry(radius, tube, tubularSegments, radialSegments, p, q) {
-    // A standard TorusKnotGeometry works well for (3,2) trefoil knots (proton)
-    return new THREE.TorusKnotGeometry(radius, tube, tubularSegments, radialSegments, p, q);
-}
-
-// -----------------------------------------------------------------------------
-// Visual Representation (Light Packets in Casimir Fluid)
-// -----------------------------------------------------------------------------
-// Replace solid/wireframe meshes with custom fluid-packet shaders.
-// The structures are simply trapped light waves circulating through the 4pi/trefoil topologies.
-const lightPacketVertexShader = `
-    varying vec2 vUv;
-    varying vec3 vNormal;
-    void main() {
-        vUv = uv;
-        vNormal = normalize(normalMatrix * normal);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-`;
-
-const lightPacketFragmentShader = `
-    uniform vec3 color;
-    uniform float time;
-    uniform float speed;
-    uniform float packetDensity;
-
-    varying vec2 vUv;
-    varying vec3 vNormal;
-
-    void main() {
-        // Create repeating light "packets" or waves traveling along the u-axis (the track)
-        float wave = sin(vUv.x * packetDensity - time * speed) * 0.5 + 0.5;
-
-        // Edge fade/glow (Fresnel-like effect to look like a fluid boundary)
-        float intensity = pow(0.7 - dot(vNormal, vec3(0, 0, 1.0)), 2.0);
-
-        // Combine wave packets with the glow
-        float finalAlpha = wave * intensity * 2.5;
-        vec3 finalColor = color * wave + (color * 0.5);
-
-        gl_FragColor = vec4(finalColor, finalAlpha);
-    }
-`;
-
-const electronMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-        color: { value: new THREE.Color(0x00ffff) },
-        time: { value: 0.0 },
-        speed: { value: 15.0 },     // Fast internal light proxy
-        packetDensity: { value: 60.0 } // Many packets looping
-    },
-    vertexShader: lightPacketVertexShader,
-    fragmentShader: lightPacketFragmentShader,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-    depthWrite: false
-});
-
-const protonMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-        color: { value: new THREE.Color(0xff00ff) },
-        time: { value: 0.0 },
-        speed: { value: 3.0 },      // Slower macroscopic internal rotation proxy for heavy mass
-        packetDensity: { value: 150.0 } // Highly compressed dense knot
-    },
-    vertexShader: lightPacketVertexShader,
-    fragmentShader: lightPacketFragmentShader,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-    depthWrite: false
-});
-
-// -----------------------------------------------------------------------------
-// Hydrogen Atom Model (Topological Geon Framework)
-// -----------------------------------------------------------------------------
-
-// Proton is roughly 1836 times more massive than an electron.
-// However, to make the proton's movement and barycenter orbit VISIBLE in the simulation,
-// we use a highly exaggerated mass ratio (e.g., 50.0).
-// This allows the proton to visibly "wobble" around the center of mass.
 const PROTON_MASS_PROXY = 50.0;
 const ELECTRON_MASS_PROXY = 1.0;
 
-// -----------------------------------------------------------------------------
-// Stable Hydrogen Orbit Mathematics
-// -----------------------------------------------------------------------------
 const BOHR_RADIUS_PROXY = 40.0;
-const COULOMB_FORCE_CONSTANT = 400.0; // Scaled up to lock the orbit tightly
+const COULOMB_FORCE_CONSTANT = 400.0;
 const GRAVITY_CONSTANT = 0.5;
 
-// Both particles orbit their common center of mass (Barycenter).
-// Calculate distances from barycenter based on mass ratio: r1*m1 = r2*m2
+// Common Barycenter tracking
 const protonRadius = BOHR_RADIUS_PROXY * (ELECTRON_MASS_PROXY / (PROTON_MASS_PROXY + ELECTRON_MASS_PROXY));
 const electronRadius = BOHR_RADIUS_PROXY * (PROTON_MASS_PROXY / (PROTON_MASS_PROXY + ELECTRON_MASS_PROXY));
 
-// -----------------------------------------------------------------------------
-// Geometric Sizing (Mass Density vs Spatial Extent)
-// -----------------------------------------------------------------------------
-// In the Topological Geon framework, the proton is vastly more massive (higher
-// surface tension/energy density) but much SMALLER spatially (compressed tightly
-// by Casimir pressure). The electron is low mass (loose surface tension) but
-// its geometric macroscopic vector potential extends much further, making it
-// conceptually "bigger" in spatial volume.
+// Core "Container" Meshes to track macroscopic position and velocity (these are invisible)
+// The independent waves will orbit relative to these moving center points.
+const electronMesh = new THREE.Mesh();
+electronMesh.position.set(electronRadius, 0, 0);
+scene.add(electronMesh);
 
-// The Proton: A highly compressed, dense, tiny (3,2)-trefoil knot
-const protonGeometry = createTrefoilKnotGeometry(1.5, 0.6, 256, 32, 3, 2);
-const protonMesh = new THREE.Mesh(protonGeometry, protonMaterial);
+const protonMesh = new THREE.Mesh();
 protonMesh.position.set(-protonRadius, 0, 0);
 scene.add(protonMesh);
 
-// The Electron: A loose, large, extended 4pi Möbius double-loop
-const electronGeometry = createMobiusDoubleLoopGeometry(5.0, 1.0, 32, 256);
-const electronMesh = new THREE.Mesh(electronGeometry, electronMaterial);
-electronMesh.position.set(electronRadius, 0, 0);
-scene.add(electronMesh);
+// Helper function to generate an independent wave packet
+function createWavePacket(color, size) {
+    const geo = new THREE.SphereGeometry(size, 8, 8);
+    const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.8 });
+    return new THREE.Mesh(geo, mat);
+}
+
+// -----------------------------------------------------------------------------
+// Construct the Electron (4pi Möbius double-loop) via Independent Waves
+// -----------------------------------------------------------------------------
+const NUM_ELECTRON_WAVES = 150;
+const ELECTRON_PATH_RADIUS = 5.0; // Large, loose
+const ELECTRON_TUBE_RADIUS = 1.0;
+const electronWaves = [];
+
+for (let i = 0; i < NUM_ELECTRON_WAVES; i++) {
+    const wave = createWavePacket(0x00ffff, 0.3);
+    // Initialize phase (0 to 4pi for the full double loop)
+    wave.userData.phaseU = (i / NUM_ELECTRON_WAVES) * 4 * Math.PI;
+    // Cross-sectional phase (v)
+    wave.userData.phaseV = Math.random() * 2 * Math.PI;
+
+    electronWaves.push(wave);
+    electronMesh.add(wave); // Add to container so it inherits macroscopic position/orientation
+}
+
+// -----------------------------------------------------------------------------
+// Construct the Proton ((3,2)-trefoil knot) via Independent Waves
+// -----------------------------------------------------------------------------
+const NUM_PROTON_WAVES = 200;
+const PROTON_PATH_RADIUS = 1.5; // Highly dense, small
+const PROTON_TUBE_RADIUS = 0.6;
+const protonWaves = [];
+
+for (let i = 0; i < NUM_PROTON_WAVES; i++) {
+    const wave = createWavePacket(0xff00ff, 0.15);
+    // Initialize phase (0 to 2pi along the main trefoil curve)
+    wave.userData.phaseU = (i / NUM_PROTON_WAVES) * 2 * Math.PI;
+    // Cross-sectional phase (v)
+    wave.userData.phaseV = Math.random() * 2 * Math.PI;
+
+    protonWaves.push(wave);
+    protonMesh.add(wave);
+}
 
 // Required orbital velocity for a circular orbit around the barycenter
 // v = sqrt(F_inward * r_from_barycenter / m)
@@ -305,10 +193,9 @@ scene.add(electronCloud);
 let cloudIndex = 0;
 
 // Proton Trail (Shows barycenter orbit explicitly)
-const protonTrailLength = 500;
+// We avoid a continuous Line buffer artifact by shifting an array linearly rather than circularly.
+const protonTrailLength = 200; // Shorter tail for cleaner look
 const protonTrailPositions = new Float32Array(protonTrailLength * 3);
-for(let i=0; i<protonTrailLength*3; i++) protonTrailPositions[i] = 10000;
-
 const protonTrailGeometry = new THREE.BufferGeometry();
 protonTrailGeometry.setAttribute('position', new THREE.BufferAttribute(protonTrailPositions, 3));
 const protonTrailMaterial = new THREE.LineBasicMaterial({
@@ -319,7 +206,7 @@ const protonTrailMaterial = new THREE.LineBasicMaterial({
 });
 const protonTrail = new THREE.Line(protonTrailGeometry, protonTrailMaterial);
 scene.add(protonTrail);
-let protonTrailIndex = 0;
+let protonTrailCurrentLength = 0;
 
 
 // -----------------------------------------------------------------------------
@@ -342,18 +229,8 @@ function createRadialVectors(mesh, color, count, directionSign, length) {
     return helpers;
 }
 
-// Visualizing forces directly attached to particles
-// Yellow: Casimir Vacuum Pressure (Inward)
-// Red: Centrifugal Momentum (Outward)
-// Magenta: Transverse/Radial Electric Vectors
-const electronCasimirArrows = createRadialVectors(electronMesh, 0xffff00, 6, -1, 4.5);
-const protonCasimirArrows = createRadialVectors(protonMesh, 0xffff00, 6, -1, 1.5);
-
-const electronCentrifArrows = createRadialVectors(electronMesh, 0xff0000, 6, 1, 4.5);
-const protonCentrifArrows = createRadialVectors(protonMesh, 0xff0000, 6, 1, 1.5);
-
-const electronElectricArrows = createRadialVectors(electronMesh, 0xff00ff, 8, -1, 6.0);
-const protonElectricArrows = createRadialVectors(protonMesh, 0xff00ff, 8, 1, 2.0);
+// Removing rigid-body `ArrowHelpers` as the particles are no longer rigid meshes,
+// they are dynamic emergent waves.
 
 // Global Arrows for Coulomb interaction (Gauss shell projection)
 const coulombArrowElectron = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), electronMesh.position, 1, 0x00ffff, 1, 1);
@@ -393,8 +270,57 @@ function animate() {
 
     // Update shader time uniforms
     vacuumFluidUniforms.uTime.value = time;
-    electronMaterial.uniforms.time.value = time;
-    protonMaterial.uniforms.time.value = time;
+
+    // -------------------------------------------------------------------------
+    // Independent Wave Propagation Update (Internal Light Speed)
+    // -------------------------------------------------------------------------
+    const electronWaveSpeed = 15.0 * 0.016; // internal c proxy per frame
+    const protonWaveSpeed = 3.0 * 0.016;
+
+    // Update individual electron waves (4pi Möbius double-loop topology)
+    electronWaves.forEach((wave) => {
+        wave.userData.phaseU += electronWaveSpeed;
+        if (wave.userData.phaseU > 4 * Math.PI) wave.userData.phaseU -= 4 * Math.PI;
+
+        // Minor spiral/vortex component along v for fluid look
+        wave.userData.phaseV += electronWaveSpeed * 2.0;
+
+        const u = wave.userData.phaseU;
+        const v = wave.userData.phaseV;
+        const twist = u / 2;
+
+        const cx = ELECTRON_TUBE_RADIUS * Math.cos(v);
+        const cy = ELECTRON_TUBE_RADIUS * Math.sin(v);
+
+        const twistedX = cx * Math.cos(twist) - cy * Math.sin(twist);
+        const twistedY = cx * Math.sin(twist) + cy * Math.cos(twist);
+
+        wave.position.x = (ELECTRON_PATH_RADIUS + twistedX) * Math.cos(u / 2);
+        wave.position.y = (ELECTRON_PATH_RADIUS + twistedX) * Math.sin(u / 2);
+        wave.position.z = twistedY;
+    });
+
+    // Update individual proton waves ((3,2)-trefoil knot topology)
+    protonWaves.forEach((wave) => {
+        wave.userData.phaseU += protonWaveSpeed;
+        if (wave.userData.phaseU > 2 * Math.PI) wave.userData.phaseU -= 2 * Math.PI;
+
+        wave.userData.phaseV += protonWaveSpeed * 3.0;
+
+        const u = wave.userData.phaseU;
+        const v = wave.userData.phaseV;
+
+        // Base (3,2) trefoil math
+        const px = Math.sin(u) + 2 * Math.sin(2 * u);
+        const py = Math.cos(u) - 2 * Math.cos(2 * u);
+        const pz = -Math.sin(3 * u);
+
+        // Add tube thickness
+        const rad = PROTON_PATH_RADIUS * 0.5;
+        wave.position.x = px * rad + PROTON_TUBE_RADIUS * Math.cos(v) * Math.cos(u);
+        wave.position.y = py * rad + PROTON_TUBE_RADIUS * Math.cos(v) * Math.sin(u);
+        wave.position.z = pz * rad + PROTON_TUBE_RADIUS * Math.sin(v);
+    });
 
     // -------------------------------------------------------------------------
     // Relativistic Kinematics & Electromagnetism Update
@@ -458,13 +384,8 @@ function animate() {
     const eLookTarget = electronMesh.position.clone().add(electronVelocity);
     electronMesh.lookAt(eLookTarget);
 
-    // Rotate the electron mesh an extra 90 degrees around its local X-axis
-    // so the wide part of the loop faces forward, pushing the fluid
-    electronMesh.rotateX(Math.PI / 2);
-
     const pLookTarget = protonMesh.position.clone().add(protonVelocity);
     protonMesh.lookAt(pLookTarget);
-    protonMesh.rotateX(Math.PI / 2);
 
     // Update Electron Probability Cloud Trail
     const positions = electronCloud.geometry.attributes.position.array;
@@ -475,23 +396,27 @@ function animate() {
     cloudIndex = (cloudIndex + 1) % cloudLength;
     electronCloud.geometry.attributes.position.needsUpdate = true;
 
-    // Update Proton Orbit Trail
+    // Update Proton Orbit Trail (Linear shift instead of circular buffer to prevent artifacts)
     const pPositions = protonTrail.geometry.attributes.position.array;
-    pPositions[protonTrailIndex * 3] = protonMesh.position.x;
-    pPositions[protonTrailIndex * 3 + 1] = protonMesh.position.y;
-    pPositions[protonTrailIndex * 3 + 2] = protonMesh.position.z;
-    protonTrailIndex = (protonTrailIndex + 1) % protonTrailLength;
 
-    // Shift proton trail array to follow the head without streaks to origin
-    for (let i = 0; i < protonTrailLength; i++) {
-        const pIndex = (protonTrailIndex + i) % protonTrailLength;
-        const nextPIndex = (protonTrailIndex + i + 1) % protonTrailLength;
-        if(pPositions[nextPIndex * 3] === 10000) {
-            pPositions[nextPIndex * 3] = pPositions[pIndex * 3];
-            pPositions[nextPIndex * 3 + 1] = pPositions[pIndex * 3 + 1];
-            pPositions[nextPIndex * 3 + 2] = pPositions[pIndex * 3 + 2];
-        }
+    // Shift all points back one slot
+    for (let i = protonTrailLength - 1; i > 0; i--) {
+        pPositions[i * 3] = pPositions[(i - 1) * 3];
+        pPositions[i * 3 + 1] = pPositions[(i - 1) * 3 + 1];
+        pPositions[i * 3 + 2] = pPositions[(i - 1) * 3 + 2];
     }
+
+    // Add current position to head
+    pPositions[0] = protonMesh.position.x;
+    pPositions[1] = protonMesh.position.y;
+    pPositions[2] = protonMesh.position.z;
+
+    if (protonTrailCurrentLength < protonTrailLength) {
+        protonTrailCurrentLength++;
+    }
+
+    // Only draw the points we have accumulated so far
+    protonTrail.geometry.setDrawRange(0, protonTrailCurrentLength);
     protonTrail.geometry.attributes.position.needsUpdate = true;
 
     // Dynamic camera tracking: Focus on the true Barycenter (Center of Mass) of the system
