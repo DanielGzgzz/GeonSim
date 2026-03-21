@@ -191,14 +191,23 @@ const GRAVITY_CONSTANT = 0.5;
 const protonRadius = BOHR_RADIUS_PROXY * (ELECTRON_MASS_PROXY / (PROTON_MASS_PROXY + ELECTRON_MASS_PROXY));
 const electronRadius = BOHR_RADIUS_PROXY * (PROTON_MASS_PROXY / (PROTON_MASS_PROXY + ELECTRON_MASS_PROXY));
 
-// The Proton: A dense, self-intersecting (3,2)-trefoil knot
-const protonGeometry = createTrefoilKnotGeometry(6.0, 1.8, 256, 32, 3, 2);
+// -----------------------------------------------------------------------------
+// Geometric Sizing (Mass Density vs Spatial Extent)
+// -----------------------------------------------------------------------------
+// In the Topological Geon framework, the proton is vastly more massive (higher
+// surface tension/energy density) but much SMALLER spatially (compressed tightly
+// by Casimir pressure). The electron is low mass (loose surface tension) but
+// its geometric macroscopic vector potential extends much further, making it
+// conceptually "bigger" in spatial volume.
+
+// The Proton: A highly compressed, dense, tiny (3,2)-trefoil knot
+const protonGeometry = createTrefoilKnotGeometry(1.5, 0.6, 256, 32, 3, 2);
 const protonMesh = new THREE.Mesh(protonGeometry, protonMaterial);
 protonMesh.position.set(-protonRadius, 0, 0);
 scene.add(protonMesh);
 
-// The Electron: A continuous 4pi Möbius double-loop
-const electronGeometry = createMobiusDoubleLoopGeometry(2.0, 0.5, 16, 128);
+// The Electron: A loose, large, extended 4pi Möbius double-loop
+const electronGeometry = createMobiusDoubleLoopGeometry(5.0, 1.0, 32, 256);
 const electronMesh = new THREE.Mesh(electronGeometry, electronMaterial);
 electronMesh.position.set(electronRadius, 0, 0);
 scene.add(electronMesh);
@@ -279,14 +288,14 @@ function createRadialVectors(mesh, color, count, directionSign, length) {
 // Yellow: Casimir Vacuum Pressure (Inward)
 // Red: Centrifugal Momentum (Outward)
 // Magenta: Transverse/Radial Electric Vectors
-const electronCasimirArrows = createRadialVectors(electronMesh, 0xffff00, 6, -1, 2.5);
-const protonCasimirArrows = createRadialVectors(protonMesh, 0xffff00, 6, -1, 3.5);
+const electronCasimirArrows = createRadialVectors(electronMesh, 0xffff00, 6, -1, 4.5);
+const protonCasimirArrows = createRadialVectors(protonMesh, 0xffff00, 6, -1, 1.5);
 
-const electronCentrifArrows = createRadialVectors(electronMesh, 0xff0000, 6, 1, 2.5);
-const protonCentrifArrows = createRadialVectors(protonMesh, 0xff0000, 6, 1, 3.5);
+const electronCentrifArrows = createRadialVectors(electronMesh, 0xff0000, 6, 1, 4.5);
+const protonCentrifArrows = createRadialVectors(protonMesh, 0xff0000, 6, 1, 1.5);
 
-const electronElectricArrows = createRadialVectors(electronMesh, 0xff00ff, 8, -1, 4.0);
-const protonElectricArrows = createRadialVectors(protonMesh, 0xff00ff, 8, 1, 4.0);
+const electronElectricArrows = createRadialVectors(electronMesh, 0xff00ff, 8, -1, 6.0);
+const protonElectricArrows = createRadialVectors(protonMesh, 0xff00ff, 8, 1, 2.0);
 
 // Global Arrows for Coulomb interaction (Gauss shell projection)
 const coulombArrowElectron = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), electronMesh.position, 1, 0x00ffff, 1, 1);
