@@ -96,6 +96,7 @@ function createMobiusDoubleLoopGeometry(radius, tube, radialSegments, tubularSeg
     const geometry = new THREE.BufferGeometry();
     const vertices = [];
     const indices = [];
+    const uvs = [];
 
     for (let i = 0; i <= tubularSegments; i++) {
         // u goes from 0 to 4π for the double loop path around the major radius
@@ -125,6 +126,9 @@ function createMobiusDoubleLoopGeometry(radius, tube, radialSegments, tubularSeg
             const z = twistedY;
 
             vertices.push(x, y, z);
+
+            // Output UVs so shaders can map gradients along the 4pi tube
+            uvs.push(i / tubularSegments, j / radialSegments);
         }
     }
 
@@ -143,6 +147,7 @@ function createMobiusDoubleLoopGeometry(radius, tube, radialSegments, tubularSeg
 
     geometry.setIndex(indices);
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geometry.computeVertexNormals();
     return geometry;
 }
@@ -152,20 +157,73 @@ function createTrefoilKnotGeometry(radius, tube, tubularSegments, radialSegments
     return new THREE.TorusKnotGeometry(radius, tube, tubularSegments, radialSegments, p, q);
 }
 
-// Visual Representation (Mass Mechanics Balance)
-// Base materials
-const electronMaterial = new THREE.MeshPhongMaterial({
-    color: 0x00ffff,
-    wireframe: true,
-    emissive: 0x002222,
-    shininess: 100
+// -----------------------------------------------------------------------------
+// Visual Representation (Light Packets in Casimir Fluid)
+// -----------------------------------------------------------------------------
+// Replace solid/wireframe meshes with custom fluid-packet shaders.
+// The structures are simply trapped light waves circulating through the 4pi/trefoil topologies.
+const lightPacketVertexShader = `
+    varying vec2 vUv;
+    varying vec3 vNormal;
+    void main() {
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+const lightPacketFragmentShader = `
+    uniform vec3 color;
+    uniform float time;
+    uniform float speed;
+    uniform float packetDensity;
+
+    varying vec2 vUv;
+    varying vec3 vNormal;
+
+    void main() {
+        // Create repeating light "packets" or waves traveling along the u-axis (the track)
+        float wave = sin(vUv.x * packetDensity - time * speed) * 0.5 + 0.5;
+
+        // Edge fade/glow (Fresnel-like effect to look like a fluid boundary)
+        float intensity = pow(0.7 - dot(vNormal, vec3(0, 0, 1.0)), 2.0);
+
+        // Combine wave packets with the glow
+        float finalAlpha = wave * intensity * 2.5;
+        vec3 finalColor = color * wave + (color * 0.5);
+
+        gl_FragColor = vec4(finalColor, finalAlpha);
+    }
+`;
+
+const electronMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+        color: { value: new THREE.Color(0x00ffff) },
+        time: { value: 0.0 },
+        speed: { value: 15.0 },     // Fast internal light proxy
+        packetDensity: { value: 60.0 } // Many packets looping
+    },
+    vertexShader: lightPacketVertexShader,
+    fragmentShader: lightPacketFragmentShader,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false
 });
 
-const protonMaterial = new THREE.MeshPhongMaterial({
-    color: 0xff00ff,
-    wireframe: true,
-    emissive: 0x220022,
-    shininess: 100
+const protonMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+        color: { value: new THREE.Color(0xff00ff) },
+        time: { value: 0.0 },
+        speed: { value: 3.0 },      // Slower macroscopic internal rotation proxy for heavy mass
+        packetDensity: { value: 150.0 } // Highly compressed dense knot
+    },
+    vertexShader: lightPacketVertexShader,
+    fragmentShader: lightPacketFragmentShader,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false
 });
 
 // -----------------------------------------------------------------------------
@@ -333,26 +391,14 @@ function animate() {
     requestAnimationFrame(animate);
     const time = clock.getElapsedTime();
 
-    // Update vacuum fluid uniforms
+    // Update shader time uniforms
     vacuumFluidUniforms.uTime.value = time;
+    electronMaterial.uniforms.time.value = time;
+    protonMaterial.uniforms.time.value = time;
 
     // -------------------------------------------------------------------------
     // Relativistic Kinematics & Electromagnetism Update
     // -------------------------------------------------------------------------
-
-    // 1. Internal wave propagation strictly fixed to c (simulated rotation)
-    // The visual rotation speed is a proxy for the internal light speed looping.
-    // Slowed down proxy for clearer visual inspection of geometries
-    const internalSpeedProxy = 0.4;
-
-    // Electron rotation (4pi loop)
-    electronMesh.rotation.y = time * internalSpeedProxy;
-    electronMesh.rotation.x = time * (internalSpeedProxy * 0.5);
-
-    // Proton rotation (trefoil knot) - Slowed down for macroscopic mass representation
-    const macroscopicProtonSpin = internalSpeedProxy * 0.1;
-    protonMesh.rotation.y = -time * macroscopicProtonSpin;
-    protonMesh.rotation.z = time * macroscopicProtonSpin * 0.3;
 
     // 2. Gravitational Attraction (Macroscopic Geometric Shadowing of Casimir Pressure)
     // Calculate distance between electron and proton knots
@@ -406,6 +452,19 @@ function animate() {
     // Apply velocities to positions (Kinematics)
     electronMesh.position.add(electronVelocity);
     protonMesh.position.add(protonVelocity);
+
+    // Orient particles strictly perpendicular to their direction of motion
+    // This perfectly mimics fluid vortex ring dynamics (smoke rings) traversing the Casimir vacuum
+    const eLookTarget = electronMesh.position.clone().add(electronVelocity);
+    electronMesh.lookAt(eLookTarget);
+
+    // Rotate the electron mesh an extra 90 degrees around its local X-axis
+    // so the wide part of the loop faces forward, pushing the fluid
+    electronMesh.rotateX(Math.PI / 2);
+
+    const pLookTarget = protonMesh.position.clone().add(protonVelocity);
+    protonMesh.lookAt(pLookTarget);
+    protonMesh.rotateX(Math.PI / 2);
 
     // Update Electron Probability Cloud Trail
     const positions = electronCloud.geometry.attributes.position.array;
@@ -471,7 +530,7 @@ function animate() {
     // Casimir vacuum pressure vs outward centrifugal momentum balances the "mass"
     const radiusEProxy = 5;
     const casimirPressure = 178700 * (5 / distance); // N proxy
-    const centrifugalMom = Math.pow(internalSpeedProxy, 2) / 5;
+    const centrifugalMom = Math.pow(0.4, 2) / 5; // Fixed proxy for UI matching slowed down rotation concept
 
     if(valCasimir) valCasimir.textContent = casimirPressure.toFixed(0) + " N";
     if(valCentrifugal) valCentrifugal.textContent = centrifugalMom.toFixed(4) + " kg·m/s";
