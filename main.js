@@ -173,40 +173,44 @@ const protonMaterial = new THREE.MeshPhongMaterial({
 // -----------------------------------------------------------------------------
 
 // Proton is roughly 1836 times more massive than an electron.
-// In this topological framework, mass is the geometric surface tension confining the light.
-// We scale the proton to be visually dominant and central, while the electron orbits.
-const PROTON_MASS_PROXY = 1836.0;
+// However, to make the proton's movement and barycenter orbit VISIBLE in the simulation,
+// we use a highly exaggerated mass ratio (e.g., 50.0).
+// This allows the proton to visibly "wobble" around the center of mass.
+const PROTON_MASS_PROXY = 50.0;
 const ELECTRON_MASS_PROXY = 1.0;
+
+// -----------------------------------------------------------------------------
+// Stable Hydrogen Orbit Mathematics
+// -----------------------------------------------------------------------------
+const BOHR_RADIUS_PROXY = 40.0;
+const COULOMB_FORCE_CONSTANT = 400.0; // Scaled up to lock the orbit tightly
+const GRAVITY_CONSTANT = 0.5;
+
+// Both particles orbit their common center of mass (Barycenter).
+// Calculate distances from barycenter based on mass ratio: r1*m1 = r2*m2
+const protonRadius = BOHR_RADIUS_PROXY * (ELECTRON_MASS_PROXY / (PROTON_MASS_PROXY + ELECTRON_MASS_PROXY));
+const electronRadius = BOHR_RADIUS_PROXY * (PROTON_MASS_PROXY / (PROTON_MASS_PROXY + ELECTRON_MASS_PROXY));
 
 // The Proton: A dense, self-intersecting (3,2)-trefoil knot
 const protonGeometry = createTrefoilKnotGeometry(6.0, 1.8, 256, 32, 3, 2);
 const protonMesh = new THREE.Mesh(protonGeometry, protonMaterial);
-protonMesh.position.set(0, 0, 0); // Proton sits at the origin
+protonMesh.position.set(-protonRadius, 0, 0);
 scene.add(protonMesh);
 
 // The Electron: A continuous 4pi Möbius double-loop
 const electronGeometry = createMobiusDoubleLoopGeometry(2.0, 0.5, 16, 128);
 const electronMesh = new THREE.Mesh(electronGeometry, electronMaterial);
-// Start the electron at a "Bohr radius" proxy distance
-const BOHR_RADIUS_PROXY = 40.0;
-electronMesh.position.set(BOHR_RADIUS_PROXY, 0, 0);
+electronMesh.position.set(electronRadius, 0, 0);
 scene.add(electronMesh);
 
-// -----------------------------------------------------------------------------
-// Stable Hydrogen Orbit Mathematics
-// -----------------------------------------------------------------------------
-// We need to perfectly balance the inward centripetal force with the required orbital velocity.
-// Inward Coulomb Force Proxy F_c = k / r^2
-const COULOMB_FORCE_CONSTANT = 400.0; // Scaled up to lock the orbit tightly
-const GRAVITY_CONSTANT = 0.5;
+// Required orbital velocity for a circular orbit around the barycenter
+// v = sqrt(F_inward * r_from_barycenter / m)
+const forceAtDistance = COULOMB_FORCE_CONSTANT / Math.pow(BOHR_RADIUS_PROXY, 2);
+const electronSpeed = Math.sqrt(forceAtDistance * electronRadius / ELECTRON_MASS_PROXY);
+const protonSpeed = Math.sqrt(forceAtDistance * protonRadius / PROTON_MASS_PROXY);
 
-// Required orbital velocity for a circular orbit: v = sqrt(F_inward * r / m)
-// At BOHR_RADIUS_PROXY (40.0), F_inward = COULOMB_FORCE_CONSTANT / 40.0^2 = 400 / 1600 = 0.25
-// v = sqrt(0.25 * 40.0 / 1.0) = sqrt(10) ≈ 3.16
-const initialOrbitalSpeed = Math.sqrt((COULOMB_FORCE_CONSTANT / Math.pow(BOHR_RADIUS_PROXY, 2)) * BOHR_RADIUS_PROXY);
-
-const electronVelocity = new THREE.Vector3(0, initialOrbitalSpeed, 0);
-const protonVelocity = new THREE.Vector3(0, -initialOrbitalSpeed * (ELECTRON_MASS_PROXY / PROTON_MASS_PROXY), 0);
+const electronVelocity = new THREE.Vector3(0, electronSpeed, 0);
+const protonVelocity = new THREE.Vector3(0, -protonSpeed, 0);
 
 // Electron Trail Cloud (Macroscopic Vector Potential Field / Probability Cloud Proxy)
 // The 2013 quantum microscope image of Hydrogen shows a "probability cloud".
@@ -232,6 +236,23 @@ const cloudMaterial = new THREE.PointsMaterial({
 const electronCloud = new THREE.Points(cloudGeometry, cloudMaterial);
 scene.add(electronCloud);
 let cloudIndex = 0;
+
+// Proton Trail (Shows barycenter orbit explicitly)
+const protonTrailLength = 500;
+const protonTrailPositions = new Float32Array(protonTrailLength * 3);
+for(let i=0; i<protonTrailLength*3; i++) protonTrailPositions[i] = 10000;
+
+const protonTrailGeometry = new THREE.BufferGeometry();
+protonTrailGeometry.setAttribute('position', new THREE.BufferAttribute(protonTrailPositions, 3));
+const protonTrailMaterial = new THREE.LineBasicMaterial({
+    color: 0xff00ff,
+    transparent: true,
+    opacity: 0.8,
+    blending: THREE.AdditiveBlending
+});
+const protonTrail = new THREE.Line(protonTrailGeometry, protonTrailMaterial);
+scene.add(protonTrail);
+let protonTrailIndex = 0;
 
 
 // -----------------------------------------------------------------------------
@@ -319,9 +340,10 @@ function animate() {
     electronMesh.rotation.y = time * internalSpeedProxy;
     electronMesh.rotation.x = time * (internalSpeedProxy * 0.5);
 
-    // Proton rotation (trefoil knot)
-    protonMesh.rotation.y = -time * internalSpeedProxy;
-    protonMesh.rotation.z = time * (internalSpeedProxy * 0.3);
+    // Proton rotation (trefoil knot) - Slowed down for macroscopic mass representation
+    const macroscopicProtonSpin = internalSpeedProxy * 0.1;
+    protonMesh.rotation.y = -time * macroscopicProtonSpin;
+    protonMesh.rotation.z = time * macroscopicProtonSpin * 0.3;
 
     // 2. Gravitational Attraction (Macroscopic Geometric Shadowing of Casimir Pressure)
     // Calculate distance between electron and proton knots
@@ -385,15 +407,40 @@ function animate() {
     cloudIndex = (cloudIndex + 1) % cloudLength;
     electronCloud.geometry.attributes.position.needsUpdate = true;
 
-    // Dynamic camera tracking: Focus primarily on the massive Proton core,
-    // but pull back enough to see the orbiting Electron. We clamp it so it never flies away.
+    // Update Proton Orbit Trail
+    const pPositions = protonTrail.geometry.attributes.position.array;
+    pPositions[protonTrailIndex * 3] = protonMesh.position.x;
+    pPositions[protonTrailIndex * 3 + 1] = protonMesh.position.y;
+    pPositions[protonTrailIndex * 3 + 2] = protonMesh.position.z;
+    protonTrailIndex = (protonTrailIndex + 1) % protonTrailLength;
+
+    // Shift proton trail array to follow the head without streaks to origin
+    for (let i = 0; i < protonTrailLength; i++) {
+        const pIndex = (protonTrailIndex + i) % protonTrailLength;
+        const nextPIndex = (protonTrailIndex + i + 1) % protonTrailLength;
+        if(pPositions[nextPIndex * 3] === 10000) {
+            pPositions[nextPIndex * 3] = pPositions[pIndex * 3];
+            pPositions[nextPIndex * 3 + 1] = pPositions[pIndex * 3 + 1];
+            pPositions[nextPIndex * 3 + 2] = pPositions[pIndex * 3 + 2];
+        }
+    }
+    protonTrail.geometry.attributes.position.needsUpdate = true;
+
+    // Dynamic camera tracking: Focus on the true Barycenter (Center of Mass) of the system
+    // Calculate the weighted center of mass dynamically
+    const barycenter = new THREE.Vector3()
+        .addScaledVector(electronMesh.position, ELECTRON_MASS_PROXY)
+        .addScaledVector(protonMesh.position, PROTON_MASS_PROXY)
+        .divideScalar(ELECTRON_MASS_PROXY + PROTON_MASS_PROXY);
+
+    // Pull back enough to see the orbiting Electron. We clamp it so it never flies away.
     const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
     const cameraDistance = clamp(distance * 1.8, 60, 150);
 
-    // Slow, stable camera tracking
-    const targetCameraPos = new THREE.Vector3(protonMesh.position.x, protonMesh.position.y, protonMesh.position.z + cameraDistance);
+    // Slow, stable camera tracking focused on the barycenter
+    const targetCameraPos = new THREE.Vector3(barycenter.x, barycenter.y, barycenter.z + cameraDistance);
     camera.position.lerp(targetCameraPos, 0.02);
-    camera.lookAt(protonMesh.position);
+    camera.lookAt(barycenter);
 
     // Update Coulomb Arrow Visuals (Cyan)
     const coulombDir = distanceVector.clone().normalize();
