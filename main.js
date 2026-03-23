@@ -140,7 +140,7 @@ scene.add(pointLight);
 // -----------------------------------------------------------------------------
 // Parametric Geometry functions to restore the strict continuous box-tubes
 
-// Electron Topology: 4pi Möbius Double-Loop (Solid 2D Extrusion)
+// Electron Topology: 4pi Möbius Double-Loop
 function createMobiusDoubleLoopGeometry(radius, tubeRadius, radialSegments, tubularSegments) {
     const curve = new THREE.Curve();
     curve.getPoint = function (t, optionalTarget = new THREE.Vector3()) {
@@ -152,25 +152,10 @@ function createMobiusDoubleLoopGeometry(radius, tubeRadius, radialSegments, tubu
         return optionalTarget.set(x, y, z);
     };
 
-    // Construct a solid square profile (4 corners) to sweep along the curve
-    const squareShape = new THREE.Shape();
-    squareShape.moveTo(-tubeRadius, -tubeRadius);
-    squareShape.lineTo(tubeRadius, -tubeRadius);
-    squareShape.lineTo(tubeRadius, tubeRadius);
-    squareShape.lineTo(-tubeRadius, tubeRadius);
-    squareShape.lineTo(-tubeRadius, -tubeRadius);
-
-    const extrudeSettings = {
-        steps: tubularSegments,
-        extrudePath: curve,
-        curveSegments: radialSegments,
-        bevelEnabled: false,
-    };
-
-    return new THREE.ExtrudeGeometry(squareShape, extrudeSettings);
+    return new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, radialSegments, true);
 }
 
-// Proton Topology: (3,2) Trefoil Knot (Solid 2D Extrusion)
+// Proton Topology: (3,2) Trefoil Knot
 function createTrefoilKnotGeometry(radius, tubeRadius, tubularSegments, radialSegments, p, q) {
     const curve = new THREE.Curve();
     curve.getPoint = function (t, optionalTarget = new THREE.Vector3()) {
@@ -181,49 +166,31 @@ function createTrefoilKnotGeometry(radius, tubeRadius, tubularSegments, radialSe
         return optionalTarget.set(x, y, z);
     };
 
-    // Construct a solid square profile (4 corners) to sweep along the curve
-    const squareShape = new THREE.Shape();
-    squareShape.moveTo(-tubeRadius, -tubeRadius);
-    squareShape.lineTo(tubeRadius, -tubeRadius);
-    squareShape.lineTo(tubeRadius, tubeRadius);
-    squareShape.lineTo(-tubeRadius, tubeRadius);
-    squareShape.lineTo(-tubeRadius, -tubeRadius);
-
-    const extrudeSettings = {
-        steps: tubularSegments,
-        extrudePath: curve,
-        curveSegments: radialSegments,
-        bevelEnabled: false,
-    };
-
-    return new THREE.ExtrudeGeometry(squareShape, extrudeSettings);
+    return new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, radialSegments, true);
 }
 
 // -----------------------------------------------------------------------------
 // Visual Representation (Materiality & Tension)
 // -----------------------------------------------------------------------------
-// The Topological Geon framework dictates that the particle is NOT a glowing flat light packet,
-// but a solid geometric track under immense physical surface tension from the Casimir vacuum fluid.
-// We use MeshPhysicalMaterial to render highly metallic, tense, watertight surfaces.
+// Force basic, solid, opaque gray tube first so you can verify the geometry is actually unbroken
+// before trying to add the colors or glowing pulses back in.
 
-const electronMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x00aaaa,
-    metalness: 0.9,
-    roughness: 0.2,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.1,
+const electronMaterial = new THREE.MeshStandardMaterial({
+    color: 0x888888,
+    roughness: 0.4,
+    metalness: 0.1,
     side: THREE.DoubleSide,
-    transparent: false
+    transparent: false,
+    wireframe: false
 });
 
-const protonMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0xaa00aa,
-    metalness: 0.95,
-    roughness: 0.1,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.1,
+const protonMaterial = new THREE.MeshStandardMaterial({
+    color: 0x888888,
+    roughness: 0.4,
+    metalness: 0.1,
     side: THREE.DoubleSide,
-    transparent: false
+    transparent: false,
+    wireframe: false
 });
 
 // -----------------------------------------------------------------------------
