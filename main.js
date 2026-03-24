@@ -113,8 +113,13 @@ const vacuumMaterial = new THREE.ShaderMaterial({
     vertexShader: vacuumFluidVertexShader,
     fragmentShader: vacuumFluidFragmentShader,
     transparent: true,
-    side: THREE.DoubleSide
+    side: THREE.BackSide // Make it render on the inside of the background sphere
 });
+
+// Add a large sphere to act as the visible tensor fluid medium surrounding the scene
+const vacuumGeometry = new THREE.SphereGeometry(300, 64, 64);
+const vacuumMesh = new THREE.Mesh(vacuumGeometry, vacuumMaterial);
+scene.add(vacuumMesh);
 
 // Basic light setup
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -224,6 +229,38 @@ const liquidMetalMat = new THREE.MeshPhysicalMaterial({
 
 const electronMaterial = liquidMetalMat.clone();
 const protonMaterial = liquidMetalMat.clone();
+
+// -----------------------------------------------------------------------------
+// Inject GLSL Displacement Map for Physical Rippling via Delta Force
+// -----------------------------------------------------------------------------
+const materialUniforms = {
+    uTime: { value: 0 },
+    uDeltaF: { value: 0 } // Net force difference during absorption swell
+};
+
+electronMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = materialUniforms.uTime;
+    shader.uniforms.uDeltaF = materialUniforms.uDeltaF;
+
+    // Inject uniform declarations
+    shader.vertexShader = `
+        uniform float uTime;
+        uniform float uDeltaF;
+    ` + shader.vertexShader;
+
+    // Inject displacement logic right before the vertex position is calculated
+    shader.vertexShader = shader.vertexShader.replace(
+        `#include <begin_vertex>`,
+        `
+        #include <begin_vertex>
+        // High-frequency sine wave multiplied by net force (uDeltaF)
+        // This causes the liquid metal boundary to physically ripple when out of equilibrium
+        float ripple = sin(position.x * 20.0 + uTime * 15.0) * cos(position.y * 20.0 + uTime * 15.0);
+        float displacement = ripple * clamp(uDeltaF * 0.05, 0.0, 0.5);
+        transformed += normal * displacement;
+        `
+    );
+};
 
 // -----------------------------------------------------------------------------
 // Hydrogen Atom Model (Topological Geon Framework)
@@ -532,6 +569,9 @@ function updatePhysics(time, dtMultiplier) {
     let e_F_in = K_VAC / (electron_r * electron_r);
     let e_F_net = e_F_out - e_F_in;
 
+    // Update the uniform for the displacement map ripple effect
+    materialUniforms.uDeltaF.value = Math.abs(e_F_net);
+
     // 3. Euler Integration with strict vacuum damping
     electron_velocity_r += e_F_net * dt;
     electron_velocity_r *= DAMPING;
@@ -573,17 +613,28 @@ function animate() {
 
     // Update shader time uniforms
     vacuumFluidUniforms.uTime.value = time;
+    materialUniforms.uTime.value = time;
 
     // -------------------------------------------------------------------------
-    // Vanilla Geometry Test Rendering
+    // Framebuffer Object (FBO) Accumulation (Time-Lapse Optical Blur)
     // -------------------------------------------------------------------------
+    // We draw the time-lapse orbit (probability cloud) deterministically
 
     let physicsData = null;
-    renderer.autoClear = true; // Auto clear for basic test
+    renderer.autoClear = false;
 
+    // Draw the previous frame into the current render target with reduced opacity
+    fboMaterial.uniforms.tDiffuse.value = renderTarget1.texture;
+    renderer.setRenderTarget(renderTarget2);
+    renderer.render(fboScene, fboCamera);
+
+    // Render the physical sub-steps
     for(let i = 0; i < subSteps; i++) {
         // 1. Update Physics Step
         physicsData = updatePhysics(time + (i * 0.016), 1.0);
+
+        // Render the scene directly into the accumulation buffer
+        renderer.render(scene, camera);
     }
 
     // -------------------------------------------------------------------------
@@ -603,9 +654,20 @@ function animate() {
         camera.lookAt(barycenter);
     }
 
-    // Render directly to screen
+    // Render the accumulated buffer to the screen
     renderer.setRenderTarget(null);
-    renderer.render(scene, camera);
+    renderer.clear();
+    fboMaterial.uniforms.tDiffuse.value = renderTarget2.texture;
+    // We need to bypass the 95% opacity for the final screen draw so it doesn't stay dim
+    const oldOpacity = fboMaterial.uniforms.opacity.value;
+    fboMaterial.uniforms.opacity.value = 1.0;
+    renderer.render(fboScene, fboCamera);
+    fboMaterial.uniforms.opacity.value = oldOpacity; // Restore for next ping-pong
+
+    // Swap buffers
+    let temp = renderTarget1;
+    renderTarget1 = renderTarget2;
+    renderTarget2 = temp;
 
     // Update UI Panel Real-Time Metrics using the final state
     if(physicsData) {
