@@ -147,7 +147,49 @@ function createMobiusDoubleLoopGeometry(radius, minorRadius, tubeThickness, tubu
         return optionalTarget.set(x, y, z);
     };
 
-    return new THREE.TubeGeometry(curve, tubularSegments, tubeThickness, radialSegments, true); // Should be closed to be unbroken
+    const geometry = new THREE.TubeGeometry(curve, tubularSegments, tubeThickness, radialSegments, true); // Should be closed to be unbroken
+
+    // Apply a strict 4pi (720 degree) geometric twist to the vertices along the path
+    const positionAttribute = geometry.attributes.position;
+    const vertex = new THREE.Vector3();
+    const center = new THREE.Vector3();
+
+    // The TubeGeometry distributes vertices evenly along the tubularSegments.
+    // For each tubular segment, there are `radialSegments + 1` vertices.
+    for (let i = 0; i <= tubularSegments; i++) {
+        // Find the center point of this segment on the curve
+        const t = i / tubularSegments;
+        curve.getPoint(t, center);
+
+        // The total twist angle for this segment (up to 4*PI total)
+        const angle = t * Math.PI * 4;
+
+        // The Frenet frame (tangent) at this point to rotate around
+        const tangent = curve.getTangent(t).normalize();
+
+        for (let j = 0; j <= radialSegments; j++) {
+            const index = i * (radialSegments + 1) + j;
+            if (index >= positionAttribute.count) continue;
+
+            vertex.fromBufferAttribute(positionAttribute, index);
+
+            // Translate vertex to origin relative to the center of the tube
+            vertex.sub(center);
+
+            // Apply the twist rotation around the path's tangent vector
+            vertex.applyAxisAngle(tangent, angle);
+
+            // Translate back
+            vertex.add(center);
+
+            positionAttribute.setXYZ(index, vertex.x, vertex.y, vertex.z);
+        }
+    }
+
+    // Recompute normals since we drastically altered the surface
+    geometry.computeVertexNormals();
+
+    return geometry;
 }
 
 // Proton Topology: (3,2) Trefoil Knot
@@ -168,22 +210,20 @@ function createTrefoilKnotGeometry(radius, tubeThickness, tubularSegments, radia
 // -----------------------------------------------------------------------------
 // Visual Representation (Materiality & Tension)
 // -----------------------------------------------------------------------------
-// Force basic, solid, opaque gray tube first so you can verify the geometry is actually unbroken
-// before trying to add the colors or glowing pulses back in.
-
-const electronMaterial = new THREE.MeshStandardMaterial({
-    color: 0x00FFFF,
-    roughness: 0.4,
-    metalness: 0.2,
-    transparent: false
+// The Liquid Metal Material: hyper-dense fluid reacting to pressure.
+const liquidMetalMat = new THREE.MeshPhysicalMaterial({
+    color: 0x888888,     // Base chrome
+    emissive: 0x00E676,  // Mint green internal energy glow
+    emissiveIntensity: 0.2, // Spikes during photon absorption
+    metalness: 1.0,      // Pure reflection
+    roughness: 0.05,     // Flawless surface
+    clearcoat: 1.0,
+    transparent: false,
+    wireframe: false
 });
 
-const protonMaterial = new THREE.MeshStandardMaterial({
-    color: 0x00FFFF,
-    roughness: 0.4,
-    metalness: 0.2,
-    transparent: false
-});
+const electronMaterial = liquidMetalMat.clone();
+const protonMaterial = liquidMetalMat.clone();
 
 // -----------------------------------------------------------------------------
 // Hydrogen Atom Model (Topological Geon Framework)
@@ -204,26 +244,23 @@ const electronRadius = BOHR_RADIUS_PROXY * (PROTON_MASS_PROXY / (PROTON_MASS_PRO
 // -----------------------------------------------------------------------------
 // Real-Time Topological Physics Engine (Dynamic Geometries)
 // -----------------------------------------------------------------------------
-// Constants (Scaled for WebGL units)
-const HBAR_C = 0.0316; // Arbitrary scale for WebGL units
-const VACUUM_DAMPING = 0.85; // Represents vacuum kinematic viscosity (h)
+// System Constants
+const R_0 = 52.9;
+const K_VAC = 52.9;
+const DAMPING = 0.85; // Vacuum kinematic viscosity
+const FLECHETTE_LIMIT = 200.0; // Topological breaking point
 
 // Geon State Variables (Electron)
-let electron_r = 3.5; // Current physical radius proxy
-let electron_velocity_r = 0.0; // Rate of topological expansion/contraction
-// Equilibrium: F_in = HBAR_C / (2 * 3.5^2) = 0.0316 / 24.5 = 0.00128979.
-// F_out = E / r. For F_out = F_in, E = F_in * r = 0.00128979 * 3.5
-let electron_E_current = 0.004514;
+let electron_r = R_0;
+let electron_velocity_r = 0.0;
+let electron_E_current = 1.0;
 
 // Geon State Variables (Proton)
-let proton_r = 0.5; // Current physical radius proxy
-let proton_velocity_r = 0.0; // Rate of topological expansion/contraction
-// Equilibrium: F_in = (4 * HBAR_C) / 0.5^2 = 0.1264 / 0.25 = 0.5056.
-// F_out = E / r. For F_out = F_in, E = F_in * r = 0.5056 * 0.5
-let proton_E_current = 0.2528;
+let proton_r = R_0 * 0.1; // Proton is significantly smaller, scaled by 0.1
+let proton_velocity_r = 0.0;
+let proton_E_current = 1.0 * 0.1; // Energy scaled for equilibrium with smaller radius
 
 // The Proton: A highly compressed, dense, tiny (3,2)-trefoil knot
-// We generate a normalized geometry (radius 1.0) and scale it dynamically.
 const protonGeometry = createTrefoilKnotGeometry(1.0, 0.15, 256, 32);
 protonGeometry.computeVertexNormals();
 const protonMesh = new THREE.Mesh(protonGeometry, protonMaterial);
@@ -231,17 +268,26 @@ protonMesh.position.set(-protonRadius, 0, 0);
 scene.add(protonMesh);
 
 // The Electron: A loose, large, extended 4pi Möbius double-loop
-// We generate a normalized geometry (radius 1.0) and scale it dynamically.
-// major radius: 1.0, minor loop radius: 0.3, tube thickness: 0.1
-const electronGeometry = createMobiusDoubleLoopGeometry(1.0, 0.3, 0.1, 512, 64);
+// major radius: 1.0, minor loop radius: 0.3, tube thickness: 0.02 (high-tension wire), radial segments: 4 (sharp cornered cross-section)
+const electronGeometry = createMobiusDoubleLoopGeometry(1.0, 0.3, 0.02, 512, 4);
 electronGeometry.computeVertexNormals();
 const electronMesh = new THREE.Mesh(electronGeometry, electronMaterial);
 electronMesh.position.set(electronRadius, 0, 0);
 scene.add(electronMesh);
 
+function triggerFlechetteDestruction(mesh) {
+    mesh.visible = false;
+    // Further logic for linear light rays could be implemented here
+    console.warn("FLECHETTE LIMIT REACHED: Topological structure broken.");
+}
+
 function updateGeonRadii() {
-    electronMesh.scale.setScalar(electron_r);
-    protonMesh.scale.setScalar(proton_r);
+    // 5. Update Solid Geometry Scale
+    const scale = electron_r / R_0;
+    electronMesh.scale.set(scale, scale, 1.0);
+
+    const protonScale = proton_r / R_0;
+    protonMesh.scale.set(protonScale, protonScale, 1.0);
 }
 // Initialize the starting scales
 updateGeonRadii();
@@ -350,7 +396,7 @@ if(speedSlider) {
 // Interactive Trigger: Photon Absorption
 // -----------------------------------------------------------------------------
 const firePhotonBtn = document.getElementById('fire-photon-btn');
-const PHOTON_ENERGY_PROXY = 0.0005; // Amount of energy the electron absorbs
+const PHOTON_ENERGY_PROXY = 1.0; // Amount of energy the electron absorbs, doubling to 2.0
 
 // Free Photon Visual Entity
 const photonGeometry = new THREE.SphereGeometry(1.5, 16, 16);
@@ -392,7 +438,9 @@ function updatePhysics(time, dtMultiplier) {
             photonMesh.visible = false;
 
             // 1. The Swell: Add energy. The outward centrifugal momentum (E/r) instantly spikes.
-            electron_E_current += PHOTON_ENERGY_PROXY;
+            electron_E_current += PHOTON_ENERGY_PROXY; // Now hits 2.0
+            electronMaterial.emissiveIntensity = 2.0;
+
             firePhotonBtn.textContent = "Electron Excited!";
             firePhotonBtn.style.color = "#ffaa00";
 
@@ -412,6 +460,12 @@ function updatePhysics(time, dtMultiplier) {
 
             }, 1500); // 1.5 seconds in excited state before emitting and crushing back down
         }
+    }
+
+    // Smoothly tween emissive intensity back to base level
+    if (electronMaterial.emissiveIntensity > 0.2) {
+        electronMaterial.emissiveIntensity -= 0.05 * dtMultiplier;
+        if (electronMaterial.emissiveIntensity < 0.2) electronMaterial.emissiveIntensity = 0.2;
     }
     // 2. Gravitational Attraction (Macroscopic Geometric Shadowing of Casimir Pressure)
     const distanceVector = new THREE.Vector3().subVectors(protonMesh.position, electronMesh.position);
@@ -469,25 +523,41 @@ function updatePhysics(time, dtMultiplier) {
     // -------------------------------------------------------------------------
     // 4. Dynamic Equilibrium: Internal Energy vs Vacuum Crush
     // -------------------------------------------------------------------------
+    // 1. Clamp dt to prevent integration explosions if framerate drops
+    const dt = Math.min(0.016 * dtMultiplier, 0.032);
+
     // Electron Radius Update
+    // 2. Calculate Opposing Fluid Forces
     let e_F_out = electron_E_current / electron_r;
-    let e_F_in = HBAR_C / (2.0 * Math.pow(electron_r, 2));
+    let e_F_in = K_VAC / (electron_r * electron_r);
     let e_F_net = e_F_out - e_F_in;
 
-    electron_velocity_r += e_F_net * dtMultiplier;
-    // Integrate with Vacuum Damping. Crucial: Prevents infinite expansion
-    electron_velocity_r *= 0.85;
-    electron_r += electron_velocity_r * dtMultiplier;
+    // 3. Euler Integration with strict vacuum damping
+    electron_velocity_r += e_F_net * dt;
+    electron_velocity_r *= DAMPING;
+    electron_r += electron_velocity_r * dt;
 
-    // Proton Radius Update (4 * HBAR_C for Trefoil geometry)
+    // 4. The Flechette Fail-State
+    if (electron_r > FLECHETTE_LIMIT && electronMesh.visible) {
+        triggerFlechetteDestruction(electronMesh);
+    }
+
+    // Proton Radius Update (Using K_VAC scaled appropriately for proton)
+    // We used proton_E_current = 0.1, proton_r = R_0 * 0.1
+    // For F_out = F_in => E/R = K_VAC_P / R^2 => 0.1 / (R_0 * 0.1) = K_VAC_P / (R_0 * 0.1)^2
+    // 1 / R_0 = K_VAC_P / (R_0^2 * 0.01) => K_VAC_P = R_0 * 0.01
+    const K_VAC_P = K_VAC * 0.01;
     let p_F_out = proton_E_current / proton_r;
-    let p_F_in = (4.0 * HBAR_C) / Math.pow(proton_r, 2);
+    let p_F_in = K_VAC_P / (proton_r * proton_r);
     let p_F_net = p_F_out - p_F_in;
 
-    proton_velocity_r += p_F_net * dtMultiplier;
-    // Integrate with Vacuum Damping
-    proton_velocity_r *= 0.85;
-    proton_r += proton_velocity_r * dtMultiplier;
+    proton_velocity_r += p_F_net * dt;
+    proton_velocity_r *= DAMPING;
+    proton_r += proton_velocity_r * dt;
+
+    if (proton_r > FLECHETTE_LIMIT && protonMesh.visible) {
+        triggerFlechetteDestruction(protonMesh);
+    }
 
     updateGeonRadii();
 
