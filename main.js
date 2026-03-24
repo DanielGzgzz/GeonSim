@@ -116,18 +116,13 @@ const vacuumMaterial = new THREE.ShaderMaterial({
     side: THREE.DoubleSide
 });
 
-// Basic light setup (Harsh, high-tension lighting)
-const ambientLight = new THREE.AmbientLight(0x111122, 0.5); // Very dim, moody ambient
+// Basic light setup
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 3.0);
-directionalLight.position.set(15, 25, 10);
-directionalLight.castShadow = true;
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+directionalLight.position.set(0, 0, 50); // Pointing at the center from camera z pos
 scene.add(directionalLight);
-
-const pointLight = new THREE.PointLight(0x00ffff, 2.0, 100);
-pointLight.position.set(-10, 0, 20);
-scene.add(pointLight);
 
 // -----------------------------------------------------------------------------
 // Because scene.background completely erases the previous render buffer when draw calls happen,
@@ -141,32 +136,33 @@ scene.add(pointLight);
 // Parametric Geometry functions to restore the strict continuous box-tubes
 
 // Electron Topology: 4pi Möbius Double-Loop
-function createMobiusDoubleLoopGeometry(radius, tubeRadius, radialSegments, tubularSegments) {
+function createMobiusDoubleLoopGeometry(radius, minorRadius, tubeThickness, tubularSegments, radialSegments) {
     const curve = new THREE.Curve();
     curve.getPoint = function (t, optionalTarget = new THREE.Vector3()) {
         const u = t * Math.PI * 4;
-        const v = u / 2;
-        const x = (radius + tubeRadius * Math.cos(v)) * Math.cos(u);
-        const y = (radius + tubeRadius * Math.cos(v)) * Math.sin(u);
-        const z = tubeRadius * Math.sin(v);
+        const v = t * Math.PI * 2; // For a true double loop, the twist matches the orbit.
+        const x = (radius + minorRadius * Math.cos(v)) * Math.cos(u);
+        const y = (radius + minorRadius * Math.cos(v)) * Math.sin(u);
+        const z = minorRadius * Math.sin(v);
         return optionalTarget.set(x, y, z);
     };
 
-    return new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, radialSegments, true);
+    return new THREE.TubeGeometry(curve, tubularSegments, tubeThickness, radialSegments, true); // Should be closed to be unbroken
 }
 
 // Proton Topology: (3,2) Trefoil Knot
-function createTrefoilKnotGeometry(radius, tubeRadius, tubularSegments, radialSegments, p, q) {
+function createTrefoilKnotGeometry(radius, tubeThickness, tubularSegments, radialSegments) {
     const curve = new THREE.Curve();
     curve.getPoint = function (t, optionalTarget = new THREE.Vector3()) {
         const u = t * Math.PI * 2;
-        const x = radius * (Math.sin(p * u / 2) + 2 * Math.sin(q * u));
-        const y = radius * (Math.cos(p * u / 2) - 2 * Math.cos(q * u));
-        const z = radius * -Math.sin(3 * u);
+        // Standard closed trefoil knot
+        const x = radius * (Math.sin(u) + 2 * Math.sin(2 * u)) * 0.3;
+        const y = radius * (Math.cos(u) - 2 * Math.cos(2 * u)) * 0.3;
+        const z = radius * -Math.sin(3 * u) * 0.3;
         return optionalTarget.set(x, y, z);
     };
 
-    return new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, radialSegments, true);
+    return new THREE.TubeGeometry(curve, tubularSegments, tubeThickness, radialSegments, true);
 }
 
 // -----------------------------------------------------------------------------
@@ -176,21 +172,17 @@ function createTrefoilKnotGeometry(radius, tubeRadius, tubularSegments, radialSe
 // before trying to add the colors or glowing pulses back in.
 
 const electronMaterial = new THREE.MeshStandardMaterial({
-    color: 0x888888,
+    color: 0x00FFFF,
     roughness: 0.4,
-    metalness: 0.1,
-    side: THREE.DoubleSide,
-    transparent: false,
-    wireframe: false
+    metalness: 0.2,
+    transparent: false
 });
 
 const protonMaterial = new THREE.MeshStandardMaterial({
-    color: 0x888888,
+    color: 0x00FFFF,
     roughness: 0.4,
-    metalness: 0.1,
-    side: THREE.DoubleSide,
-    transparent: false,
-    wireframe: false
+    metalness: 0.2,
+    transparent: false
 });
 
 // -----------------------------------------------------------------------------
@@ -232,14 +224,17 @@ let proton_E_current = 0.2528;
 
 // The Proton: A highly compressed, dense, tiny (3,2)-trefoil knot
 // We generate a normalized geometry (radius 1.0) and scale it dynamically.
-const protonGeometry = createTrefoilKnotGeometry(1.0, 0.3, 256, 32, 3, 2);
+const protonGeometry = createTrefoilKnotGeometry(1.0, 0.15, 256, 32);
+protonGeometry.computeVertexNormals();
 const protonMesh = new THREE.Mesh(protonGeometry, protonMaterial);
 protonMesh.position.set(-protonRadius, 0, 0);
 scene.add(protonMesh);
 
 // The Electron: A loose, large, extended 4pi Möbius double-loop
 // We generate a normalized geometry (radius 1.0) and scale it dynamically.
-const electronGeometry = createMobiusDoubleLoopGeometry(1.0, 0.114, 64, 512);
+// major radius: 1.0, minor loop radius: 0.3, tube thickness: 0.1
+const electronGeometry = createMobiusDoubleLoopGeometry(1.0, 0.3, 0.1, 512, 64);
+electronGeometry.computeVertexNormals();
 const electronMesh = new THREE.Mesh(electronGeometry, electronMaterial);
 electronMesh.position.set(electronRadius, 0, 0);
 scene.add(electronMesh);
@@ -510,45 +505,20 @@ function animate() {
     vacuumFluidUniforms.uTime.value = time;
 
     // -------------------------------------------------------------------------
-    // High-Fidelity Physics Sub-stepping & Continuous FBO Accumulation
+    // Vanilla Geometry Test Rendering
     // -------------------------------------------------------------------------
-    // To prevent "stuttering ghosts" at high speeds, we must render the scene
-    // into the accumulation buffer at EVERY micro-step, creating a perfectly continuous optical blur.
 
     let physicsData = null;
-    const configuredOpacity = fboMaterial.uniforms.opacity.value;
-
-    // Disable auto-clear for continuous accumulation
-    renderer.autoClear = false;
+    renderer.autoClear = true; // Auto clear for basic test
 
     for(let i = 0; i < subSteps; i++) {
-        // 1. Update Physics Step (simulating 1 standard dt multiplier)
+        // 1. Update Physics Step
         physicsData = updatePhysics(time + (i * 0.016), 1.0);
-
-        // 2. Accumulate this specific micro-frame into the FBO
-        // Crucially, the camera MUST NOT move during this loop. Moving the camera
-        // between micro-frames misaligns the previous screen-space render texture
-        // causing tearing and smearing artifacts across the FBO.
-        renderer.setRenderTarget(renderTarget1);
-
-        // Fade existing history on renderTarget1 using the tDiffuse of renderTarget2
-        fboMaterial.uniforms.tDiffuse.value = renderTarget2.texture;
-        renderer.render(fboScene, fboCamera);
-
-        // Draw the current micro-step particle positions on top
-        renderer.render(scene, camera);
-
-        // Swap targets for the *next* micro-step in the loop
-        let temp = renderTarget1;
-        renderTarget1 = renderTarget2;
-        renderTarget2 = temp;
     }
 
     // -------------------------------------------------------------------------
-    // Final Output Pass to Screen (Once per requestAnimationFrame)
+    // Final Output Pass to Screen
     // -------------------------------------------------------------------------
-    // After all sub-steps are fully accumulated into the FBO for this frame,
-    // update the camera position so it follows the particles smoothly across real frames.
     if(physicsData) {
         const barycenter = new THREE.Vector3()
             .addScaledVector(electronMesh.position, ELECTRON_MASS_PROXY)
@@ -562,19 +532,10 @@ function animate() {
         camera.position.lerp(targetCameraPos, 0.05);
         camera.lookAt(barycenter);
     }
+
+    // Render directly to screen
     renderer.setRenderTarget(null);
-    renderer.clear(); // We do clear the actual screen buffer
-
-    // We want to draw the *last accumulated* buffer (which is now sitting in renderTarget2
-    // due to the final swap at the end of the sub-step loop) onto the screen.
-    fboMaterial.uniforms.tDiffuse.value = renderTarget2.texture;
-
-    // Force 1.0 opacity when drawing to screen so we don't accidentally fade the final image
-    fboMaterial.uniforms.opacity.value = 1.0;
-    renderer.render(fboScene, fboCamera);
-
-    // Restore the fading opacity configured by the slider for the next total frame
-    fboMaterial.uniforms.opacity.value = configuredOpacity;
+    renderer.render(scene, camera);
 
     // Update UI Panel Real-Time Metrics using the final state
     if(physicsData) {
