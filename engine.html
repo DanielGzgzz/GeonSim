@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Topological Geon Physics Engine</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: monospace; color: #0f0; }
+        canvas { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #ui-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(0, 20, 0, 0.8);
+            border: 1px solid #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            width: 350px;
+            pointer-events: none;
+        }
+        h2 { margin-top: 0; font-size: 1.2em; text-align: center; border-bottom: 1px solid #0f0; padding-bottom: 5px; }
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .data-label { font-weight: bold; }
+        .legend { margin-top: 10px; font-size: 0.9em; color: #aaa; border-top: 1px dashed #0f0; padding-top: 5px; }
+        .legend span { display: inline-block; width: 10px; height: 10px; margin-right: 5px; }
+
+        #theory-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(0, 0, 20, 0.85);
+            border: 1px solid #0ff;
+            color: #0ff;
+            padding: 15px;
+            border-radius: 5px;
+            width: 450px;
+            max-height: 90vh;
+            overflow-y: auto;
+            display: none;
+            font-family: sans-serif;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        #theory-panel h2 { color: #0ff; border-bottom: 1px solid #0ff; font-family: monospace; }
+        #theory-panel h3 { color: #fff; margin-bottom: 5px; }
+        #theory-panel p { margin-top: 0; }
+        #toggle-theory-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 20;
+            background: #000;
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: monospace;
+            border-radius: 3px;
+        }
+        #toggle-theory-btn:hover { background: #002222; }
+    </style>
+    <!-- Include Three.js from a CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="ui-panel">
+        <h2>Topological Geon Diagnostics</h2>
+        <div class="data-row"><span class="data-label">Vacuum Kinematic Action (h):</span> <span id="val-h"></span></div>
+        <div class="data-row"><span class="data-label">Internal Wave Velocity (c):</span> <span id="val-c"></span></div>
+        <br>
+        <div class="data-row"><span class="data-label">Orbital Velocity (v):</span> <span id="val-vel"></span></div>
+        <div class="data-row"><span class="data-label">Distance (r):</span> <span id="val-dist"></span></div>
+        <br>
+        <div class="data-row"><span class="data-label">Casimir Vacuum Pressure:</span> <span id="val-casimir"></span></div>
+        <div class="data-row"><span class="data-label">Geometric Shadowing Force:</span> <span id="val-shadow"></span></div>
+        <br>
+        <div class="data-row"><span class="data-label">Centrifugal Momentum:</span> <span id="val-centrifugal"></span></div>
+        <div class="data-row"><span class="data-label">Inertial Helical Stretch:</span> <span id="val-stretch"></span></div>
+        <br>
+        <div class="data-row"><span class="data-label">Effective Charge (E_rms):</span> <span id="val-charge"></span></div>
+
+        <div class="legend">
+            <div><span style="background: yellow;"></span> Casimir Pressure (Inward)</div>
+            <div><span style="background: red;"></span> Centrifugal Momentum (Outward)</div>
+            <div><span style="background: magenta;"></span> Electric Radial Vectors</div>
+            <div><span style="background: cyan;"></span> Gauss Shell (Coulomb Force)</div>
+        </div>
+    </div>
+
+    <div style="position: absolute; bottom: 20px; left: 20px; z-index: 20; background: rgba(0, 20, 0, 0.8); border: 1px solid #0f0; padding: 15px; border-radius: 5px; font-family: monospace; color: #0f0;">
+        <label for="speed-slider"><b>Time-Lapse Speed (Sub-steps)</b></label><br>
+        <input type="range" id="speed-slider" min="1" max="200" value="1" style="width: 200px;">
+        <span id="speed-val">1x</span>
+
+        <div style="margin-top: 15px; border-top: 1px dashed #0f0; padding-top: 10px;">
+            <b>Interactive Physics:</b><br>
+            <button id="fire-photon-btn" style="margin-top: 5px; background: #000; color: #0ff; border: 1px solid #0ff; padding: 5px; cursor: pointer; width: 100%;">Fire Photon (Absorb Energy)</button>
+        </div>
+    </div>
+
+    <a href="index.html" style="position: absolute; bottom: 20px; right: 20px; z-index: 20; background: rgba(0, 0, 20, 0.8); border: 1px solid #0ff; color: #0ff; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-family: monospace; font-size: 1.1em; box-shadow: 0 0 10px rgba(0,255,255,0.3); transition: all 0.2s ease;">&larr; Back to Kinematic Weave</a>
+
+    <button id="toggle-theory-btn">Show Theory Refinement</button>
+    <div id="theory-panel">
+        <button id="close-theory-btn" style="float: right; background:none; color:#0ff; border:none; cursor:pointer;">[X]</button>
+        <h2>The Topological Geon Framework</h2>
+        <p><i>A deterministic mechanical universe replacing zero-dimensional point particles and abstract spacetime with a hyper-elastic vacuum fluid and topological knots of confined light.</i></p>
+
+        <h3>I. The Vacuum Medium and Wave Kinematics</h3>
+        <p><b>The Fluid Vacuum:</b> Empty space is an active, pressurized field of zero-point fluctuations. Planck's constant (h) is explicitly defined as the fundamental kinematic action viscosity of this medium.</p>
+        <p><b>The Geon Threshold:</b> At exactly 1.022 MeV, inward volumetric Casimir pressure overpowers internal repulsive expansion. Asymmetrical topological shear arrests forward momentum, violently buckling the wave into stable, counter-rotating loops of matter.</p>
+
+        <h3>II. Particle Topology and the Illusion of Charge</h3>
+        <p><b>Leptonic & Hadronic Geometry:</b> Electrons are 1D tracks of circularly polarized light trapped in continuous 4&pi; twisted Möbius double-loops. Protons are self-intersecting (3,2)-trefoil knots.</p>
+        <p><b>Gauss Shell Emergence:</b> Fractional point-quarks are eliminated. Charge is a macroscopic illusion generated by the destructive interference of transverse electric vectors. The surviving inward radial flux mathematically projects a perfect inverse-square monopole.</p>
+
+        <h3>III. The Mechanical Origins of Forces</h3>
+        <p><b>Strong Nuclear Force & Inertia:</b> The strong force is macroscopic vacuum surface tension (178,700 Newtons of physical inward Casimir pressure). Inertia is the geometric resistance of the vacuum against the physical stretching of the light track into a helix under acceleration.</p>
+        <p><b>Gravity:</b> Mass acts as a geometric shield against isotropic vacuum pressure. Mutual Casimir shadows create unbalanced external pressure, mechanically pushing overlapping geometries together. Gravitational lensing is fluid-dynamic wave-front refraction.</p>
+
+        <h3>IV. Resolution of Paradoxes</h3>
+        <p><b>The Double-Slit & Singularities:</b> The localized topological core passes through one slit, while its extended macroscopic vector potential acts as a deterministic "pilot wave". Gravitational collapse hits an absolute physical boundary (the Gezin Radius), and intersecting mass unspools instantly back into pure gamma radiation (Quasar Ignition).</p>
+
+        <h3>V. The Hydrogen Atom (2013 Quantum Microscope)</h3>
+        <img src="hydrogen_microscope.png" alt="2013 Quantum Microscope Hydrogen Image" style="width: 100%; border: 1px solid #0ff; margin-bottom: 10px;">
+        <p><b>Probabilistic but Deterministic:</b> The famous 2013 photoionization microscopy image of the Hydrogen atom's wave function shows nested rings of probability. In this framework, those are not random clouds of a point particle popping in and out of existence. It is the time-averaged optical blur of the deterministic topological electron being steered by the continuous resonances of its own macroscopic pilot wave interacting with the proton's topology.</p>
+    </div>
+
+    <script>
+        const btnOpen = document.getElementById('toggle-theory-btn');
+        const btnClose = document.getElementById('close-theory-btn');
+        const panel = document.getElementById('theory-panel');
+
+        btnOpen.addEventListener('click', () => {
+            panel.style.display = 'block';
+            btnOpen.style.display = 'none';
+        });
+
+        btnClose.addEventListener('click', () => {
+            panel.style.display = 'none';
+            btnOpen.style.display = 'block';
+        });
+    </script>
+    <script src="main.js"></script>
+</body>
+</html>
