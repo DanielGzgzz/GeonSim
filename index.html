@@ -19,15 +19,19 @@
 <body>
     <div id="ui">
         <h3>Geon Harmonic Weave</h3>
-        <div class="control-group">
-            <label>Orbital State</label>
-            <select id="orbitalSelect">
-                <option value="1s">1s (m=0)</option>
-                <option value="2p0">2p (m=0)</option>
-                <option value="2p1">2p (m=1)</option>
-                <option value="3d0">3d (m=0)</option>
-                <option value="4f3">4f (m=3)</option>
-            </select>
+        <div class="control-group" style="display: flex; gap: 5px;">
+            <div style="flex: 1;">
+                <label>n (Principal)</label>
+                <input type="number" id="nInput" value="3" min="1" max="7" step="1">
+            </div>
+            <div style="flex: 1;">
+                <label>l (Azimuthal)</label>
+                <input type="number" id="lInput" value="2" min="0" max="6" step="1">
+            </div>
+            <div style="flex: 1;">
+                <label>m (Magnetic)</label>
+                <input type="number" id="mInput" value="0" min="-6" max="6" step="1">
+            </div>
         </div>
 
         <div class="control-group">
@@ -50,11 +54,12 @@
         </div>
 
         <div class="formulas">
-            <h4>Computational Logic</h4>
+            <h4>Computational Logic (Emergent)</h4>
             <p><b>&theta; = acos(sin(i * &theta;_freq))</b></p>
             <p><b>&phi; = i * &phi;_freq</b></p>
+            <p><b>Y(&theta;,&phi;) = Spherical Harmonic P<sub>l</sub><sup>m</sup>(cos&theta;) e<sup>im&phi;</sup></b></p>
             <p><b>Radius (r) = 15.0 * |Y|<sup>1.2</sup> + Vacuum Turbulence</b></p>
-            <p style="color:#aaa; font-style:italic; margin-top:10px;">Note: This visualization demonstrates the extreme outer kinematic envelope of the orbital. It does not "weave inside" the space (like a solid probability cloud) because it represents a 1D wave trapped at a specific, high-energy boundary surface driven by these incommensurate frequencies. Lowering the step count or tweaking the frequencies reveals the single continuous thread creating this illusion.</p>
+            <p style="color:#aaa; font-style:italic; margin-top:10px;">Note: This visualization dynamically computes the real spherical harmonic envelope for ANY valid quantum state (n, l, m) rather than relying on hardcoded shapes. It traces the extreme outer kinematic boundary where the wave is trapped by incommensurate frequencies. Lowering the step count reveals the single continuous thread creating this deterministic illusion.</p>
         </div>
 
         <a href="engine.html" class="engine-link">Launch Full Physics Engine &rarr;</a>
@@ -77,10 +82,68 @@
 
         let currentLine = null;
 
+        // Helper: Factorial
+        function factorial(n) {
+            let res = 1;
+            for(let i=2; i<=n; i++) res *= i;
+            return res;
+        }
+
+        // Helper: Associated Legendre Polynomial P_l^m(x)
+        function legendreP(l, m, x) {
+            let pmm = 1.0;
+            if (m > 0) {
+                let somx2 = Math.sqrt((1.0 - x)*(1.0 + x));
+                let fact = 1.0;
+                for (let i = 1; i <= m; i++) {
+                    pmm *= -fact * somx2;
+                    fact += 2.0;
+                }
+            }
+            if (l === m) return pmm;
+
+            let pmmp1 = x * (2.0 * m + 1.0) * pmm;
+            if (l === m + 1) return pmmp1;
+
+            let pll = 0.0;
+            for (let ll = m + 2; ll <= l; ll++) {
+                pll = ((2.0 * ll - 1.0) * x * pmmp1 - (ll + m - 1.0) * pmm) / (ll - m);
+                pmm = pmmp1;
+                pmmp1 = pll;
+            }
+            return pll;
+        }
+
+        // Helper: Real Spherical Harmonic Y_l^m(theta, phi)
+        function realSphericalHarmonic(l, m, theta, phi) {
+            const m_abs = Math.abs(m);
+            // Normalization constant
+            const norm = Math.sqrt(((2*l + 1)*factorial(l - m_abs)) / (4*Math.PI*factorial(l + m_abs)));
+            const P = legendreP(l, m_abs, Math.cos(theta));
+
+            if (m > 0) {
+                return Math.SQRT2 * norm * P * Math.cos(m * phi);
+            } else if (m < 0) {
+                return Math.SQRT2 * norm * P * Math.sin(m_abs * phi);
+            } else {
+                return norm * P;
+            }
+        }
+
         function generateWeave() {
             if (currentLine) scene.remove(currentLine);
 
-            const type = document.getElementById('orbitalSelect').value;
+            const n = parseInt(document.getElementById('nInput').value) || 1;
+            let l_val = parseInt(document.getElementById('lInput').value) || 0;
+            let m_val = parseInt(document.getElementById('mInput').value) || 0;
+
+            // Validation rules
+            if (l_val >= n) l_val = n - 1;
+            if (Math.abs(m_val) > l_val) m_val = Math.sign(m_val) * l_val;
+
+            document.getElementById('lInput').value = l_val;
+            document.getElementById('mInput').value = m_val;
+
             const numSteps = parseInt(document.getElementById('numStepsInput').value) || 150000;
             const thetaFreq = parseFloat(document.getElementById('thetaFreqInput').value) || 0.00007;
             const phiFreq = parseFloat(document.getElementById('phiFreqInput').value) || 0.002313;
@@ -88,23 +151,31 @@
             const geometry = new THREE.BufferGeometry();
             const positions = new Float32Array(numSteps * 3);
 
-            let colorHex = 0x00FFFF; // Default Cyan (s)
+            // Dynamic color mapping based on orbital angular momentum (l)
+            const colors = [0x00FFFF, 0x00FF00, 0xFF00FF, 0xFFFF00, 0xFF4500, 0x1E90FF, 0xFFFFFF];
+            let colorHex = colors[l_val % colors.length];
+
+            // Normalize Y scale so it renders at a relatively consistent radius
+            // by sampling the max value first (rudimentary but effective for viz)
+            let maxY = 0.0001;
+            for(let i=0; i<1000; i++) {
+                const test_theta = Math.random() * Math.PI;
+                const test_phi = Math.random() * Math.PI * 2;
+                const y_val = Math.abs(realSphericalHarmonic(l_val, m_val, test_theta, test_phi));
+                if (y_val > maxY) maxY = y_val;
+            }
 
             for (let i = 0; i < numSteps; i++) {
                 // Incommensurate driving frequencies
                 const theta = Math.acos(Math.sin(i * thetaFreq));
                 const phi = i * phiFreq;
-                let Y = 1.0;
 
-                // The Kinematic Envelopes
-                if (type === '1s') { Y = 1.0; colorHex = 0x00FFFF; }
-                else if (type === '2p0') { Y = Math.cos(theta); colorHex = 0x00FF00; }
-                else if (type === '2p1') { Y = Math.sin(theta) * Math.cos(phi); colorHex = 0x00FF00; }
-                else if (type === '3d0') { Y = 3 * Math.pow(Math.cos(theta), 2) - 1; colorHex = 0xFF00FF; }
-                else if (type === '4f3') { Y = Math.pow(Math.sin(theta), 3) * Math.cos(3 * phi); colorHex = 0xFFFF00; }
+                // Emergent Calculation
+                const rawY = realSphericalHarmonic(l_val, m_val, theta, phi);
+                const normalizedY = rawY / maxY;
 
                 // Radius calculation with slight vacuum turbulence
-                const r = 15.0 * Math.pow(Math.abs(Y), 1.2) + (Math.sin(i * 0.1) * 0.15);
+                const r = 15.0 * Math.pow(Math.abs(normalizedY), 1.2) + (Math.sin(i * 0.1) * 0.15);
 
                 // Cartesian conversion
                 positions[i * 3] = r * Math.sin(theta) * Math.cos(phi);
@@ -123,7 +194,9 @@
             scene.add(currentLine);
         }
 
-        document.getElementById('orbitalSelect').addEventListener('change', generateWeave);
+        document.getElementById('nInput').addEventListener('change', generateWeave);
+        document.getElementById('lInput').addEventListener('change', generateWeave);
+        document.getElementById('mInput').addEventListener('change', generateWeave);
         document.getElementById('updateBtn').addEventListener('click', generateWeave);
         generateWeave(); // Init
 
