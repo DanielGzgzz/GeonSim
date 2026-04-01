@@ -228,6 +228,9 @@
             const a0 = 1.0;
             const rho = 2.0 * r / (n * a0);
 
+            // Normalization constant
+            const norm = Math.sqrt(Math.pow(2.0 / (n * a0), 3) * factorial(n - l_val - 1) / (2.0 * n * factorial(n + l_val)));
+
             // simplified laguerre/factorial
             let laguerre = 1.0;
             if (n===1 && l_val===0) laguerre = 1.0;
@@ -244,8 +247,8 @@
             else if (n===5 && l_val===2) laguerre = 1.0 - (2.0/15.0)*rho + (1.0/210.0)*Math.pow(rho,2);
             else if (n===5 && l_val===3) laguerre = 1.0 - (1.0/20.0)*rho;
             else if (n===5 && l_val===4) laguerre = 1.0;
-            // Generalized approximation since implementing genlaguerre in JS is dense:
-            return Math.exp(-rho / 2.0) * Math.pow(rho, l_val) * laguerre;
+
+            return norm * Math.exp(-rho / 2.0) * Math.pow(rho, l_val) * laguerre;
         }
 
         function prob_density_cart(x, y, z, n, l_val, m_val) {

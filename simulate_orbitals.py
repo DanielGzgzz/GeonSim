@@ -19,7 +19,8 @@ def R_nl(r, n, l):
 
 def real_sph_harm(l, m, theta, phi):
     """Computes the Real Spherical Harmonic (to avoid complex planes and match 3D physical shapes)."""
-    Y_c = sph_harm_y(l, abs(m), phi, theta)
+    # Note: scipy.special.sph_harm_y takes (n, m, theta, phi) where theta is polar and phi is azimuthal.
+    Y_c = sph_harm_y(l, abs(m), theta, phi)
     if m < 0:
         return np.sqrt(2) * (-1)**m * Y_c.imag
     elif m > 0:
