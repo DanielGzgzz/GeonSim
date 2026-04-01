@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Langevin Nodal Crossing</title>
+    <style>
+        body { margin: 0; background: #0d1117; color: #c9d1d9; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        #canvas-container { flex-grow: 1; position: relative; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at center, #1f242c 0%, #0d1117 100%); }
+        canvas { box-shadow: 0 0 20px rgba(0,0,0,0.5); border-radius: 8px; background: #000; }
+        #controls { width: 300px; padding: 20px; background: #161b22; border-left: 1px solid #30363d; display: flex; flex-direction: column; gap: 20px; z-index: 10;}
+        h2 { margin-top: 0; font-size: 1.2rem; color: #58a6ff; }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        input[type=range] { width: 100%; accent-color: #58a6ff; }
+        button { padding: 10px; background: #238636; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #2ea043; }
+        .back-link { display: inline-block; padding: 10px; background: #30363d; color: white; border: none; border-radius: 5px; cursor: pointer; text-align: center; text-decoration: none; font-weight: bold;}
+        .back-link:hover { background: #8b949e; }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <canvas id="simCanvas" width="600" height="400"></canvas>
+</div>
+
+<div id="controls">
+    <h2>Langevin Thermostat</h2>
+
+    <div class="control-group">
+        <label for="dragSlider">Vacuum Drag (η): <span id="dragVal">0.05</span></label>
+        <input type="range" id="dragSlider" min="0.01" max="0.2" step="0.01" value="0.05">
+    </div>
+
+    <div class="control-group">
+        <label for="zpfSlider">ZPF Kick Strength (D): <span id="zpfVal">0.0</span></label>
+        <input type="range" id="zpfSlider" min="0" max="2.0" step="0.1" value="0">
+    </div>
+
+    <button id="resetBtn">Reset Trajectory</button>
+
+    <div style="font-size: 0.85rem; color: #8b949e; margin-top: auto;">
+        <p><strong>Mechanics:</strong></p>
+        <p>The particle is caught in a Double-Well Potential. The central ridge acts as the infinite quantum node.</p>
+        <p>Increase ZPF Kick to inject stochastic vacuum energy, allowing the 1D trajectory to breach the node and achieve 3D ergodicity.</p>
+    </div>
+
+    <a href="index.html" class="back-link">Return to 3D Orbital Weave</a>
+</div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Simulation Parameters
+    let drag = 0.05;
+    let zpfStrength = 0;
+
+    // Particle State
+    let x = -100; // Start in left well
+    let y = 0;
+    let vx = 0;
+    let vy = 10;
+    let path = [];
+    const maxPath = 1000;
+
+    // Physics Constants
+    const dt = 0.1;
+    const wellDistance = 100; // Distance of wells from center
+    const A = 0.000005;       // X-axis double well steepness
+    const B = 0.05;           // Y-axis confinement steepness
+
+    // UI Elements
+    document.getElementById('dragSlider').oninput = (e) => { drag = parseFloat(e.target.value); document.getElementById('dragVal').innerText = drag; };
+    document.getElementById('zpfSlider').oninput = (e) => { zpfStrength = parseFloat(e.target.value); document.getElementById('zpfVal').innerText = zpfStrength.toFixed(1); };
+    document.getElementById('resetBtn').onclick = () => { x = -wellDistance; y = 0; vx = 0; vy = 10; path = []; };
+
+    // Standard Normal Variate (Box-Muller)
+    function randn_bm() {
+        let u = 0, v = 0;
+        while(u === 0) u = Math.random();
+        while(v === 0) v = Math.random();
+        return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+    }
+
+    function updatePhysics() {
+        // Gradient Force (Double Well Potential: V(x) = A*(x^2 - R^2)^2, Fx = -dV/dx)
+        let Fx = -4 * A * x * (x * x - wellDistance * wellDistance);
+        let Fy = -B * y;
+
+        // Langevin Update
+        vx = vx * (1 - drag) + Fx * dt + (zpfStrength > 0 ? Math.sqrt(2 * zpfStrength) * randn_bm() : 0);
+        vy = vy * (1 - drag) + Fy * dt + (zpfStrength > 0 ? Math.sqrt(2 * zpfStrength) * randn_bm() : 0);
+
+        x += vx * dt;
+        y += vy * dt;
+
+        path.push({x, y});
+        if(path.length > maxPath) path.shift();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Background Wells (Visual aid)
+        let cx = canvas.width / 2;
+        let cy = canvas.height / 2;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.beginPath(); ctx.arc(cx - wellDistance, cy, 40, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + wellDistance, cy, 40, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 50, 50, 0.2)';
+        ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
+
+        // Draw Trajectory
+        if (path.length > 1) {
+            ctx.beginPath();
+            ctx.moveTo(cx + path[0].x, cy + path[0].y);
+            for(let i=1; i<path.length; i++) {
+                ctx.lineTo(cx + path[i].x, cy + path[i].y);
+            }
+            ctx.strokeStyle = 'rgba(88, 166, 255, 0.4)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
+
+        // Draw Particle
+        ctx.beginPath();
+        ctx.arc(cx + x, cy + y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#58a6ff';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#58a6ff';
+        ctx.fill();
+        ctx.shadowBlur = 0; // reset
+    }
+
+    function loop() {
+        for(let i=0; i<10; i++) updatePhysics(); // speed up sim
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    loop();
+</script>
+</body>
+</html>

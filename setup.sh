@@ -24,12 +24,3 @@ echo "Running the orbital simulation..."
 python3 simulate_orbitals.py
 
 echo "Simulation complete! Check the orbitals_report.md and orbital_plots directory for results."
-
-# Compile the LaTeX document
-echo "Compiling the LaTeX paper..."
-pdflatex paper.tex
-bibtex paper.aux
-pdflatex paper.tex
-pdflatex paper.tex
-
-echo "Compilation complete! The final document is available at paper.pdf."
