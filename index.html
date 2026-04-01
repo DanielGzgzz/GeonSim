@@ -5,7 +5,9 @@
     <title>Topological Geon Weave</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; color: #fff; font-family: sans-serif; }
-        #ui { position: absolute; top: 20px; left: 20px; z-index: 10; background: rgba(20,20,20,0.8); padding: 15px; border: 1px solid #333; border-radius: 8px; max-width: 350px;}
+        #ui { position: absolute; top: 20px; left: 20px; z-index: 10; background: rgba(20,20,20,0.8); padding: 15px; border: 1px solid #333; border-radius: 8px; max-width: 320px; max-height: 95vh; overflow-y: auto;}
+        #ref-panel { position: absolute; top: 20px; right: 20px; z-index: 10; background: rgba(20,20,20,0.8); padding: 15px; border: 1px solid #00FFCC; border-radius: 8px; max-width: 300px; text-align: center;}
+        #tooltip { position: absolute; z-index: 20; background: rgba(0, 50, 50, 0.9); border: 1px solid #0ff; color: #0ff; padding: 10px; border-radius: 4px; pointer-events: none; display: none; font-family: monospace; font-size: 11px; line-height: 1.4; box-shadow: 0 0 10px rgba(0,255,255,0.2);}
         select, input[type=number] { background: #000; color: #00FFCC; border: 1px solid #00FFCC; padding: 5px 10px; font-size: 14px; margin-top: 5px; cursor: pointer; width: 100%; box-sizing: border-box; }
         .control-group { margin-top: 15px; }
         .control-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 2px;}
@@ -17,6 +19,16 @@
     </style>
 </head>
 <body>
+    <div id="tooltip"></div>
+
+    <div id="ref-panel">
+        <span style="display:block; font-size:13px; color:#fff; font-weight:bold; margin-bottom:8px;">Standard Schrödinger Reference</span>
+        <img id="refImage" src="assets/ref_1_0_0.png" style="width: 100%; border: 1px solid #00FFCC; border-radius: 4px; background: #000;">
+        <div style="font-size: 11px; color: #aaa; margin-top: 10px; text-align: left;">
+            <b>Hover</b> over the real-time deterministic path forming in the center to inspect the instantaneous physical momentum and energy vectors that bind the electron to this trajectory.
+        </div>
+    </div>
+
     <div id="ui">
         <h3>Emergent Deterministic Path</h3>
         <p style="font-size: 11px; color: #aaa; margin-top:-10px;">Single continuous path driven by fluid forces.</p>
@@ -70,11 +82,6 @@
             <p>- Transverse Fluid Pressure: $\nabla Y_l^m$</p>
         </div>
 
-        <div style="border-top: 1px dashed #333; padding-top: 15px; text-align: center;">
-            <span style="display:block; font-size:12px; color:#aaa; margin-bottom:5px;">Standard Schrödinger Reference</span>
-            <img id="refImage" src="assets/ref_1_0_0.png" style="width: 100%; border: 1px solid #00FFCC; border-radius: 4px;">
-        </div>
-
         <a href="engine.html" class="engine-link">Launch Full Physics Engine &rarr;</a>
     </div>
 
@@ -94,6 +101,15 @@
         controls.autoRotateSpeed = 1.0;
 
         let currentLine = null;
+        let positionsArray = null;
+        let animationData = null; // Stores physics state for progressive rendering
+
+        // Raycasting for interactive physics inspection
+        const raycaster = new THREE.Raycaster();
+        raycaster.params.Line.threshold = 1.0; // wider hit area for lines
+        const mouse = new THREE.Vector2();
+        const tooltip = document.getElementById('tooltip');
+        let physicsMetadata = []; // Store (vr, vtheta, vphi, E, prob) for each point
 
         // Helper: Factorial
         function factorial(n) {
@@ -170,87 +186,13 @@
             document.getElementById('displaySteps').innerText = numSteps.toLocaleString();
 
             const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(numSteps * 3);
+            positionsArray = new Float32Array(numSteps * 3);
+            geometry.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
+            geometry.setDrawRange(0, 0); // Start empty, progressive render
 
             // Dynamic color mapping based on orbital angular momentum (l)
             const colors = [0x00FFFF, 0x00FF00, 0xFF00FF, 0xFFFF00, 0xFF4500, 0x1E90FF, 0xFFFFFF];
             let colorHex = colors[l_val % colors.length];
-
-            // PHYSICS CONSTANTS (Transpiled from simulate_orbitals.py)
-            const a0 = 1.0;
-            const r0 = Math.pow(n, 2) * a0;
-            const K_vac = 1.0;
-            const E_n = K_vac / r0;
-            const dt = 0.05;
-
-            // INITIAL STATE
-            let r = r0 * 0.9;
-            let theta = (l_val > 0) ? (Math.PI / 4.0) : (Math.PI / 2.0);
-            let phi = 0.0;
-
-            let vr = 0.0;
-            let vtheta = 0.1;
-            let vphi = 0.1;
-
-            const d_theta = 0.01;
-            const d_phi = 0.01;
-            const steer_strength = 0.05;
-
-            // EULER INTEGRATION LOOP
-            for (let i = 0; i < numSteps; i++) {
-                // A. Base Geon Forces (Radial)
-                const F_r = (E_n / r) - (K_vac / Math.pow(r, 2));
-
-                // B. Emergent Angular Steering (Gradient of vacuum density)
-                let safe_theta = Math.max(0.01, Math.min(Math.PI - 0.01, theta));
-
-                let p_current = probability_density(safe_theta, phi, l_val, m_val);
-                let p_theta_plus = probability_density(safe_theta + d_theta, phi, l_val, m_val);
-                let p_phi_plus = probability_density(safe_theta, phi + d_phi, l_val, m_val);
-
-                let grad_theta = (p_theta_plus - p_current) / d_theta;
-                let grad_phi = (p_phi_plus - p_current) / d_phi;
-
-                let norm_factor = p_current + 1e-10;
-
-                // Guard NaNs
-                if (isNaN(grad_theta) || !isFinite(grad_theta)) grad_theta = 0.0;
-                if (isNaN(grad_phi) || !isFinite(grad_phi)) grad_phi = 0.0;
-
-                let F_theta = (grad_theta / norm_factor) * steer_strength;
-                let F_phi = (grad_phi / norm_factor) * steer_strength + (0.01 * (Math.abs(m_val) + 1));
-
-                // Clamp limits
-                F_theta = Math.max(-0.5, Math.min(0.5, F_theta));
-                F_phi = Math.max(-0.5, Math.min(0.5, F_phi));
-
-                // C. Update Velocities with Damping
-                vr += F_r * dt;
-                vtheta += F_theta * dt;
-                vphi += F_phi * dt;
-
-                vr *= 0.98;
-                vtheta *= 0.99;
-                vphi *= 0.999;
-
-                // D. Update Position
-                r += vr * dt;
-                theta += vtheta * dt;
-                phi += vphi * dt;
-
-                // Wrap angles for stability
-                if (theta < 0) theta = Math.abs(theta);
-                if (theta > Math.PI) theta = Math.PI - (theta - Math.PI);
-
-                // Store
-                // We scale `r` up purely for WebGL visualization size
-                const render_r = r * 3.0;
-                positions[i * 3] = render_r * Math.sin(theta) * Math.cos(phi);
-                positions[i * 3 + 1] = render_r * Math.sin(theta) * Math.sin(phi);
-                positions[i * 3 + 2] = render_r * Math.cos(theta);
-            }
-
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
             const material = new THREE.LineBasicMaterial({
                 color: colorHex, transparent: true, opacity: 0.08,
@@ -259,6 +201,104 @@
 
             currentLine = new THREE.Line(geometry, material);
             scene.add(currentLine);
+
+            // PHYSICS CONSTANTS (Transpiled from simulate_orbitals.py)
+            const a0 = 1.0;
+            const r0 = Math.pow(n, 2) * a0;
+            const K_vac = 1.0;
+            const E_n = K_vac / r0;
+
+            // Initialize physics state for progressive animation
+            animationData = {
+                n, l_val, m_val, a0, r0, K_vac, E_n,
+                r: r0 * 0.9,
+                theta: (l_val > 0) ? (Math.PI / 4.0) : (Math.PI / 2.0),
+                phi: 0.0,
+                vr: 0.0,
+                vtheta: 0.1,
+                vphi: 0.1,
+                currentStep: 0,
+                totalSteps: numSteps,
+                dt: 0.05,
+                d_theta: 0.01,
+                d_phi: 0.01,
+                steer_strength: 0.05
+            };
+
+            physicsMetadata = new Array(numSteps);
+        }
+
+        function calculatePhysicsBatch(stepsToRun) {
+            if (!animationData || animationData.currentStep >= animationData.totalSteps) return;
+
+            const { n, l_val, m_val, K_vac, E_n, dt, d_theta, d_phi, steer_strength, totalSteps } = animationData;
+            const endStep = Math.min(animationData.currentStep + stepsToRun, totalSteps);
+
+            for (let i = animationData.currentStep; i < endStep; i++) {
+                // A. Base Geon Forces (Radial)
+                const F_r = (E_n / animationData.r) - (K_vac / Math.pow(animationData.r, 2));
+
+                // B. Emergent Angular Steering (Gradient of vacuum density)
+                let safe_theta = Math.max(0.01, Math.min(Math.PI - 0.01, animationData.theta));
+
+                let p_current = probability_density(safe_theta, animationData.phi, l_val, m_val);
+                let p_theta_plus = probability_density(safe_theta + d_theta, animationData.phi, l_val, m_val);
+                let p_phi_plus = probability_density(safe_theta, animationData.phi + d_phi, l_val, m_val);
+
+                let grad_theta = (p_theta_plus - p_current) / d_theta;
+                let grad_phi = (p_phi_plus - p_current) / d_phi;
+
+                let norm_factor = p_current + 1e-10;
+
+                if (isNaN(grad_theta) || !isFinite(grad_theta)) grad_theta = 0.0;
+                if (isNaN(grad_phi) || !isFinite(grad_phi)) grad_phi = 0.0;
+
+                let F_theta = (grad_theta / norm_factor) * steer_strength;
+                let F_phi = (grad_phi / norm_factor) * steer_strength + (0.01 * (Math.abs(m_val) + 1));
+
+                F_theta = Math.max(-0.5, Math.min(0.5, F_theta));
+                F_phi = Math.max(-0.5, Math.min(0.5, F_phi));
+
+                // C. Update Velocities with Damping
+                animationData.vr += F_r * dt;
+                animationData.vtheta += F_theta * dt;
+                animationData.vphi += F_phi * dt;
+
+                animationData.vr *= 0.98;
+                animationData.vtheta *= 0.99;
+                animationData.vphi *= 0.999;
+
+                // D. Update Position
+                animationData.r += animationData.vr * dt;
+                animationData.theta += animationData.vtheta * dt;
+                animationData.phi += animationData.vphi * dt;
+
+                if (animationData.theta < 0) animationData.theta = Math.abs(animationData.theta);
+                if (animationData.theta > Math.PI) animationData.theta = Math.PI - (animationData.theta - Math.PI);
+
+                // We scale `r` up purely for WebGL visualization size
+                const render_r = animationData.r * 3.0;
+                positionsArray[i * 3] = render_r * Math.sin(animationData.theta) * Math.cos(animationData.phi);
+                positionsArray[i * 3 + 1] = render_r * Math.sin(animationData.theta) * Math.sin(animationData.phi);
+                positionsArray[i * 3 + 2] = render_r * Math.cos(animationData.theta);
+
+                // Pre-calculate physical metadata for the raycaster
+                // Total Energy = Kinetic (0.5*v^2) + Potential Casimir (-K_vac/r)
+                const v2 = Math.pow(animationData.vr, 2) + Math.pow(animationData.vtheta, 2) + Math.pow(animationData.vphi, 2);
+                const E_total = (0.5 * v2) - (K_vac / animationData.r);
+
+                physicsMetadata[i] = {
+                    vx: animationData.vr,
+                    vy: animationData.vtheta,
+                    vz: animationData.vphi,
+                    E: E_total,
+                    prob: p_current
+                };
+            }
+
+            currentLine.geometry.attributes.position.needsUpdate = true;
+            currentLine.geometry.setDrawRange(0, endStep);
+            animationData.currentStep = endStep;
         }
 
         document.getElementById('orbitalSelect').addEventListener('change', generateWeave);
@@ -271,8 +311,52 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            tooltip.style.left = (event.clientX + 15) + 'px';
+            tooltip.style.top = (event.clientY + 15) + 'px';
+        });
+
         function animate() {
             requestAnimationFrame(animate);
+
+            // Progressive rendering: Draw 3000 steps per frame until finished
+            calculatePhysicsBatch(3000);
+
+            // Raycasting logic for tooltip
+            if (currentLine && animationData && animationData.currentStep > 0) {
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObject(currentLine);
+
+                if (intersects.length > 0) {
+                    // Get closest point index on the line
+                    const index = intersects[0].index;
+                    if (index !== undefined && index < animationData.currentStep) {
+                        const data = physicsMetadata[index];
+                        if (data) {
+                            tooltip.style.display = 'block';
+                            tooltip.innerHTML = `
+                                <b>Instantaneous Physical State</b><br>
+                                <span style="color:#aaa;">Tracking step: ${index}</span><br>
+                                <hr style="border: 0; border-top: 1px dashed #0ff; margin: 5px 0;">
+                                <b>Momentum Vector:</b><br>
+                                &nbsp;v<sub>r</sub>: &nbsp;${data.vx.toFixed(4)}<br>
+                                &nbsp;v<sub>&theta;</sub>: ${data.vy.toFixed(4)}<br>
+                                &nbsp;v<sub>&phi;</sub>: ${data.vz.toFixed(4)}<br>
+                                <b>Total Binding Energy:</b> ${data.E.toFixed(4)} MeV<br>
+                                <b>Vacuum Density (Pilot):</b> ${(data.prob * 100).toFixed(2)}%
+                            `;
+                        }
+                    }
+                } else {
+                    tooltip.style.display = 'none';
+                }
+            } else {
+                tooltip.style.display = 'none';
+            }
+
             controls.update();
             renderer.render(scene, camera);
         }
