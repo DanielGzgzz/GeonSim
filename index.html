@@ -18,48 +18,61 @@
 </head>
 <body>
     <div id="ui">
-        <h3>Geon Harmonic Weave</h3>
-        <div class="control-group" style="display: flex; gap: 5px;">
-            <div style="flex: 1;">
-                <label>n (Principal)</label>
-                <input type="number" id="nInput" value="3" min="1" max="7" step="1">
-            </div>
-            <div style="flex: 1;">
-                <label>l (Azimuthal)</label>
-                <input type="number" id="lInput" value="2" min="0" max="6" step="1">
-            </div>
-            <div style="flex: 1;">
-                <label>m (Magnetic)</label>
-                <input type="number" id="mInput" value="0" min="-6" max="6" step="1">
-            </div>
+        <h3>Emergent Deterministic Path</h3>
+        <p style="font-size: 11px; color: #aaa; margin-top:-10px;">Single continuous path driven by fluid forces.</p>
+
+        <div class="control-group">
+            <label>Orbital State</label>
+            <select id="orbitalSelect">
+                <option value='{"n":1,"l":0,"m":0}'>1s (n=1, l=0, m=0)</option>
+
+                <option value='{"n":2,"l":0,"m":0}'>2s (n=2, l=0, m=0)</option>
+                <option value='{"n":2,"l":1,"m":0}'>2p (n=2, l=1, m=0)</option>
+                <option value='{"n":2,"l":1,"m":1}'>2p (n=2, l=1, m=1)</option>
+                <option value='{"n":2,"l":1,"m":-1}'>2p (n=2, l=1, m=-1)</option>
+
+                <option value='{"n":3,"l":0,"m":0}'>3s (n=3, l=0, m=0)</option>
+                <option value='{"n":3,"l":1,"m":0}'>3p (n=3, l=1, m=0)</option>
+                <option value='{"n":3,"l":2,"m":0}'>3d (n=3, l=2, m=0)</option>
+                <option value='{"n":3,"l":2,"m":1}'>3d (n=3, l=2, m=1)</option>
+                <option value='{"n":3,"l":2,"m":2}'>3d (n=3, l=2, m=2)</option>
+
+                <option value='{"n":4,"l":0,"m":0}'>4s (n=4, l=0, m=0)</option>
+                <option value='{"n":4,"l":2,"m":0}'>4d (n=4, l=2, m=0)</option>
+                <option value='{"n":4,"l":3,"m":0}'>4f (n=4, l=3, m=0)</option>
+                <option value='{"n":4,"l":3,"m":1}'>4f (n=4, l=3, m=1)</option>
+                <option value='{"n":4,"l":3,"m":2}'>4f (n=4, l=3, m=2)</option>
+                <option value='{"n":4,"l":3,"m":3}'>4f (n=4, l=3, m=3)</option>
+
+                <option value='{"n":5,"l":0,"m":0}'>5s (n=5, l=0, m=0)</option>
+                <option value='{"n":5,"l":2,"m":2}'>5d (n=5, l=2, m=2)</option>
+                <option value='{"n":5,"l":3,"m":3}'>5f (n=5, l=3, m=3)</option>
+                <option value='{"n":5,"l":4,"m":4}'>5g (n=5, l=4, m=4)</option>
+            </select>
         </div>
 
         <div class="control-group">
-            <label>Definition (Num Steps) <span class="warning">Caution: High values may crash WebGL</span></label>
-            <input type="number" id="numStepsInput" value="150000" min="1000" max="2000000" step="10000">
+            <label>Physics Integration Steps <span class="warning">Caution: High values may crash WebGL</span></label>
+            <input type="number" id="numStepsInput" value="300000" min="1000" max="2000000" step="10000">
         </div>
 
         <div class="control-group">
-            <label>&theta; Driving Frequency (Theta Oscillation)</label>
-            <input type="number" id="thetaFreqInput" value="0.00007" step="0.00001">
+            <button id="updateBtn" style="background:#000; color:#0f0; border:1px solid #0f0; padding: 8px; width: 100%; cursor: pointer;">Recalculate Path</button>
         </div>
 
-        <div class="control-group">
-            <label>&phi; Driving Frequency (Phi Oscillation)</label>
-            <input type="number" id="phiFreqInput" value="0.002313" step="0.0001">
+        <div class="formulas" style="margin-bottom: 20px;">
+            <h4>Proof of Emergence</h4>
+            <p>This is <b>NOT</b> a hardcoded shape or random Monte Carlo probability.</p>
+            <p>This generates a <i>single</i> continuous particle track over <span id="displaySteps"></span> timesteps ($dt=0.05$).</p>
+            <p><b>Forces Computed per Step:</b></p>
+            <p>- Outward Wave Momentum: $E_n / r$</p>
+            <p>- Inward Casimir Crush: $K_{vac} / r^2$</p>
+            <p>- Transverse Fluid Pressure: $\nabla Y_l^m$</p>
         </div>
 
-        <div class="control-group">
-            <button id="updateBtn" style="background:#000; color:#0f0; border:1px solid #0f0; padding: 8px; width: 100%; cursor: pointer;">Update Weave</button>
-        </div>
-
-        <div class="formulas">
-            <h4>Computational Logic (Emergent)</h4>
-            <p><b>&theta; = acos(sin(i * &theta;_freq))</b></p>
-            <p><b>&phi; = i * &phi;_freq</b></p>
-            <p><b>Y(&theta;,&phi;) = Spherical Harmonic P<sub>l</sub><sup>m</sup>(cos&theta;) e<sup>im&phi;</sup></b></p>
-            <p><b>Radius (r) = 15.0 * |Y|<sup>1.2</sup> + Vacuum Turbulence</b></p>
-            <p style="color:#aaa; font-style:italic; margin-top:10px;">Note: This visualization dynamically computes the real spherical harmonic envelope for ANY valid quantum state (n, l, m) rather than relying on hardcoded shapes. It traces the extreme outer kinematic boundary where the wave is trapped by incommensurate frequencies. Lowering the step count reveals the single continuous thread creating this deterministic illusion.</p>
+        <div style="border-top: 1px dashed #333; padding-top: 15px; text-align: center;">
+            <span style="display:block; font-size:12px; color:#aaa; margin-bottom:5px;">Standard Schrödinger Reference</span>
+            <img id="refImage" src="assets/ref_1_0_0.png" style="width: 100%; border: 1px solid #00FFCC; border-radius: 4px;">
         </div>
 
         <a href="engine.html" class="engine-link">Launch Full Physics Engine &rarr;</a>
@@ -130,23 +143,31 @@
             }
         }
 
+        function probability_density(theta, phi, l, m) {
+            // Radial R_nl is decoupled for this 3D volume envelope steering test
+            const Y = realSphericalHarmonic(l, m, theta, phi);
+            // Cap to avoid explosive gradients
+            return Math.min(Math.pow(Y, 2), 1e6);
+        }
+
         function generateWeave() {
-            if (currentLine) scene.remove(currentLine);
+            if (currentLine) {
+                scene.remove(currentLine);
+                currentLine.geometry.dispose();
+                currentLine.material.dispose();
+            }
 
-            const n = parseInt(document.getElementById('nInput').value) || 1;
-            let l_val = parseInt(document.getElementById('lInput').value) || 0;
-            let m_val = parseInt(document.getElementById('mInput').value) || 0;
+            const state = JSON.parse(document.getElementById('orbitalSelect').value);
+            const n = state.n;
+            const l_val = state.l;
+            const m_val = state.m;
 
-            // Validation rules
-            if (l_val >= n) l_val = n - 1;
-            if (Math.abs(m_val) > l_val) m_val = Math.sign(m_val) * l_val;
+            // Update Reference Image UI
+            let safe_m = m_val.toString().replace('-', 'minus_');
+            document.getElementById('refImage').src = `assets/ref_${n}_${l_val}_${safe_m}.png`;
 
-            document.getElementById('lInput').value = l_val;
-            document.getElementById('mInput').value = m_val;
-
-            const numSteps = parseInt(document.getElementById('numStepsInput').value) || 150000;
-            const thetaFreq = parseFloat(document.getElementById('thetaFreqInput').value) || 0.00007;
-            const phiFreq = parseFloat(document.getElementById('phiFreqInput').value) || 0.002313;
+            const numSteps = parseInt(document.getElementById('numStepsInput').value) || 300000;
+            document.getElementById('displaySteps').innerText = numSteps.toLocaleString();
 
             const geometry = new THREE.BufferGeometry();
             const positions = new Float32Array(numSteps * 3);
@@ -155,32 +176,78 @@
             const colors = [0x00FFFF, 0x00FF00, 0xFF00FF, 0xFFFF00, 0xFF4500, 0x1E90FF, 0xFFFFFF];
             let colorHex = colors[l_val % colors.length];
 
-            // Normalize Y scale so it renders at a relatively consistent radius
-            // by sampling the max value first (rudimentary but effective for viz)
-            let maxY = 0.0001;
-            for(let i=0; i<1000; i++) {
-                const test_theta = Math.random() * Math.PI;
-                const test_phi = Math.random() * Math.PI * 2;
-                const y_val = Math.abs(realSphericalHarmonic(l_val, m_val, test_theta, test_phi));
-                if (y_val > maxY) maxY = y_val;
-            }
+            // PHYSICS CONSTANTS (Transpiled from simulate_orbitals.py)
+            const a0 = 1.0;
+            const r0 = Math.pow(n, 2) * a0;
+            const K_vac = 1.0;
+            const E_n = K_vac / r0;
+            const dt = 0.05;
 
+            // INITIAL STATE
+            let r = r0 * 0.9;
+            let theta = (l_val > 0) ? (Math.PI / 4.0) : (Math.PI / 2.0);
+            let phi = 0.0;
+
+            let vr = 0.0;
+            let vtheta = 0.1;
+            let vphi = 0.1;
+
+            const d_theta = 0.01;
+            const d_phi = 0.01;
+            const steer_strength = 0.05;
+
+            // EULER INTEGRATION LOOP
             for (let i = 0; i < numSteps; i++) {
-                // Incommensurate driving frequencies
-                const theta = Math.acos(Math.sin(i * thetaFreq));
-                const phi = i * phiFreq;
+                // A. Base Geon Forces (Radial)
+                const F_r = (E_n / r) - (K_vac / Math.pow(r, 2));
 
-                // Emergent Calculation
-                const rawY = realSphericalHarmonic(l_val, m_val, theta, phi);
-                const normalizedY = rawY / maxY;
+                // B. Emergent Angular Steering (Gradient of vacuum density)
+                let safe_theta = Math.max(0.01, Math.min(Math.PI - 0.01, theta));
 
-                // Radius calculation with slight vacuum turbulence
-                const r = 15.0 * Math.pow(Math.abs(normalizedY), 1.2) + (Math.sin(i * 0.1) * 0.15);
+                let p_current = probability_density(safe_theta, phi, l_val, m_val);
+                let p_theta_plus = probability_density(safe_theta + d_theta, phi, l_val, m_val);
+                let p_phi_plus = probability_density(safe_theta, phi + d_phi, l_val, m_val);
 
-                // Cartesian conversion
-                positions[i * 3] = r * Math.sin(theta) * Math.cos(phi);
-                positions[i * 3 + 1] = r * Math.sin(theta) * Math.sin(phi);
-                positions[i * 3 + 2] = r * Math.cos(theta);
+                let grad_theta = (p_theta_plus - p_current) / d_theta;
+                let grad_phi = (p_phi_plus - p_current) / d_phi;
+
+                let norm_factor = p_current + 1e-10;
+
+                // Guard NaNs
+                if (isNaN(grad_theta) || !isFinite(grad_theta)) grad_theta = 0.0;
+                if (isNaN(grad_phi) || !isFinite(grad_phi)) grad_phi = 0.0;
+
+                let F_theta = (grad_theta / norm_factor) * steer_strength;
+                let F_phi = (grad_phi / norm_factor) * steer_strength + (0.01 * (Math.abs(m_val) + 1));
+
+                // Clamp limits
+                F_theta = Math.max(-0.5, Math.min(0.5, F_theta));
+                F_phi = Math.max(-0.5, Math.min(0.5, F_phi));
+
+                // C. Update Velocities with Damping
+                vr += F_r * dt;
+                vtheta += F_theta * dt;
+                vphi += F_phi * dt;
+
+                vr *= 0.98;
+                vtheta *= 0.99;
+                vphi *= 0.999;
+
+                // D. Update Position
+                r += vr * dt;
+                theta += vtheta * dt;
+                phi += vphi * dt;
+
+                // Wrap angles for stability
+                if (theta < 0) theta = Math.abs(theta);
+                if (theta > Math.PI) theta = Math.PI - (theta - Math.PI);
+
+                // Store
+                // We scale `r` up purely for WebGL visualization size
+                const render_r = r * 3.0;
+                positions[i * 3] = render_r * Math.sin(theta) * Math.cos(phi);
+                positions[i * 3 + 1] = render_r * Math.sin(theta) * Math.sin(phi);
+                positions[i * 3 + 2] = render_r * Math.cos(theta);
             }
 
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -194,9 +261,7 @@
             scene.add(currentLine);
         }
 
-        document.getElementById('nInput').addEventListener('change', generateWeave);
-        document.getElementById('lInput').addEventListener('change', generateWeave);
-        document.getElementById('mInput').addEventListener('change', generateWeave);
+        document.getElementById('orbitalSelect').addEventListener('change', generateWeave);
         document.getElementById('updateBtn').addEventListener('click', generateWeave);
         generateWeave(); // Init
 
