@@ -207,19 +207,17 @@
             // Initialize kinematics state for progressive animation
             animationData = {
                 n, l_val, m_val, a0, r0,
-                r: r0 * 0.9,
-                theta: (l_val > 0) ? (Math.PI / 4.0) : (Math.PI / 2.0),
-                phi: 0.0,
-                vr: 0.0,
-                vtheta: 0.1,
-                vphi: 0.1,
+                x: r0 * 0.5,
+                y: 0.1,
+                z: 0.1,
+                vx: 0.0,
+                vy: 2.0,
+                vz: 1.0,
                 currentStep: 0,
                 totalSteps: numSteps,
-                dt: 0.05,
-                dr: 0.01,
-                d_theta: 0.01,
-                d_phi: 0.01,
-                steer_strength: 0.05
+                dt: 0.01,
+                d: 0.05,
+                k_pot: 20.0
             };
 
             physicsMetadata = new Array(numSteps);
@@ -238,81 +236,99 @@
             else if (n===3 && l_val===0) laguerre = 1.0 - (2.0/3.0)*rho + (2.0/27.0)*Math.pow(rho,2);
             else if (n===3 && l_val===1) laguerre = 1.0 - (1.0/6.0)*rho;
             else if (n===3 && l_val===2) laguerre = 1.0;
+            else if (n===4 && l_val===0) laguerre = 1.0 - (3.0/4.0)*rho + (1.0/8.0)*Math.pow(rho,2) - (1.0/192.0)*Math.pow(rho,3);
+            else if (n===4 && l_val===1) laguerre = 1.0 - (1.0/4.0)*rho + (1.0/80.0)*Math.pow(rho,2);
+            else if (n===4 && l_val===2) laguerre = 1.0 - (1.0/12.0)*rho;
+            else if (n===4 && l_val===3) laguerre = 1.0;
+            else if (n===5 && l_val===0) laguerre = 1.0 - (4.0/5.0)*rho + (4.0/25.0)*Math.pow(rho,2) - (4.0/375.0)*Math.pow(rho,3) + (1.0/3750.0)*Math.pow(rho,4);
+            else if (n===5 && l_val===2) laguerre = 1.0 - (2.0/15.0)*rho + (1.0/210.0)*Math.pow(rho,2);
+            else if (n===5 && l_val===3) laguerre = 1.0 - (1.0/20.0)*rho;
+            else if (n===5 && l_val===4) laguerre = 1.0;
             // Generalized approximation since implementing genlaguerre in JS is dense:
-            // The python simulation correctly handles the shape, we rely on the angular
-            // part mainly for steering here to match the python output.
             return Math.exp(-rho / 2.0) * Math.pow(rho, l_val) * laguerre;
+        }
+
+        function prob_density_cart(x, y, z, n, l_val, m_val) {
+            let r = Math.sqrt(x*x + y*y + z*z);
+            if (r < 1e-5) r = 1e-5;
+            let theta = Math.acos(Math.max(-1.0, Math.min(1.0, z / r)));
+            let phi = Math.atan2(y, x);
+
+            let R = calc_R_nl(r, n, l_val);
+            let Y = realSphericalHarmonic(l_val, m_val, theta, phi);
+
+            return Math.pow(R * Y, 2);
+        }
+
+        // Box-Muller transform for standard normal distribution
+        function randomNormal() {
+            let u = 0, v = 0;
+            while(u === 0) u = Math.random();
+            while(v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
         }
 
         function calculatePhysicsBatch(stepsToRun) {
             if (!animationData || animationData.currentStep >= animationData.totalSteps) return;
 
-            const { n, l_val, m_val, dt, dr, d_theta, d_phi, steer_strength, totalSteps } = animationData;
+            const { n, l_val, m_val, dt, d, k_pot, totalSteps } = animationData;
             const endStep = Math.min(animationData.currentStep + stepsToRun, totalSteps);
 
             for (let i = animationData.currentStep; i < endStep; i++) {
 
-                let safe_theta = Math.max(0.01, Math.min(Math.PI - 0.01, animationData.theta));
-                let safe_r = Math.max(0.01, animationData.r);
+                let P0 = prob_density_cart(animationData.x, animationData.y, animationData.z, n, l_val, m_val);
+                let Px = prob_density_cart(animationData.x + d, animationData.y, animationData.z, n, l_val, m_val);
+                let Py = prob_density_cart(animationData.x, animationData.y + d, animationData.z, n, l_val, m_val);
+                let Pz = prob_density_cart(animationData.x, animationData.y, animationData.z + d, n, l_val, m_val);
 
-                // Full Hamiltonian Quantum Potential steering V_Q = -k * ln(P) -> F_Q = k * grad(P) / P
-                let p_current = probability_density(safe_theta, animationData.phi, l_val, m_val) * Math.pow(calc_R_nl(safe_r, n, l_val), 2);
-                let p_r_plus = probability_density(safe_theta, animationData.phi, l_val, m_val) * Math.pow(calc_R_nl(safe_r + dr, n, l_val), 2);
-                let p_theta_plus = probability_density(safe_theta + d_theta, animationData.phi, l_val, m_val) * Math.pow(calc_R_nl(safe_r, n, l_val), 2);
-                let p_phi_plus = probability_density(safe_theta, animationData.phi + d_phi, l_val, m_val) * Math.pow(calc_R_nl(safe_r, n, l_val), 2);
+                let eps = 1e-10;
+                let Fx = k_pot * (Px - P0) / (d * (P0 + eps));
+                let Fy = k_pot * (Py - P0) / (d * (P0 + eps));
+                let Fz = k_pot * (Pz - P0) / (d * (P0 + eps));
 
-                let grad_r = (p_r_plus - p_current) / dr;
-                let grad_theta = (p_theta_plus - p_current) / d_theta;
-                let grad_phi = (p_phi_plus - p_current) / d_phi;
-
-                let norm_factor = p_current + 1e-10;
-
-                if (isNaN(grad_r) || !isFinite(grad_r)) grad_r = 0.0;
-                if (isNaN(grad_theta) || !isFinite(grad_theta)) grad_theta = 0.0;
-                if (isNaN(grad_phi) || !isFinite(grad_phi)) grad_phi = 0.0;
-
-                let F_r = (grad_r / norm_factor) * steer_strength;
-                let F_theta = (grad_theta / norm_factor) * steer_strength;
-                let F_phi = (grad_phi / norm_factor) * steer_strength + (0.01 * (Math.abs(m_val) + 1));
-
-                F_r = Math.max(-0.5, Math.min(0.5, F_r));
-                F_theta = Math.max(-0.5, Math.min(0.5, F_theta));
-                F_phi = Math.max(-0.5, Math.min(0.5, F_phi));
+                let max_F = 100.0;
+                Fx = Math.max(-max_F, Math.min(max_F, Fx));
+                Fy = Math.max(-max_F, Math.min(max_F, Fy));
+                Fz = Math.max(-max_F, Math.min(max_F, Fz));
 
                 // Update Kinetic Energy / Momenta
-                animationData.vr += F_r * dt;
-                animationData.vtheta += F_theta * dt;
-                animationData.vphi += F_phi * dt;
+                animationData.vx += Fx * dt;
+                animationData.vy += Fy * dt;
+                animationData.vz += Fz * dt;
 
                 // Energetic thermostat damping (to stay in well)
-                animationData.vr *= 0.98;
-                animationData.vtheta *= 0.99;
-                animationData.vphi *= 0.999;
+                let damping = 0.99;
+                animationData.vx *= damping;
+                animationData.vy *= damping;
+                animationData.vz *= damping;
+
+                // Add stochastic kick (Langevin) to explore the full course
+                let kick = 0.5;
+                animationData.vx += randomNormal() * kick;
+                animationData.vy += randomNormal() * kick;
+                animationData.vz += randomNormal() * kick;
 
                 // Update Position
-                animationData.r += animationData.vr * dt;
-                animationData.theta += animationData.vtheta * dt;
-                animationData.phi += animationData.vphi * dt;
+                animationData.x += animationData.vx * dt;
+                animationData.y += animationData.vy * dt;
+                animationData.z += animationData.vz * dt;
 
-                if (animationData.theta < 0) animationData.theta = Math.abs(animationData.theta);
-                if (animationData.theta > Math.PI) animationData.theta = Math.PI - (animationData.theta - Math.PI);
-
-                // Scale r up purely for WebGL visualization size
-                const render_r = animationData.r * 3.0;
-                positionsArray[i * 3] = render_r * Math.sin(animationData.theta) * Math.cos(animationData.phi);
-                positionsArray[i * 3 + 1] = render_r * Math.sin(animationData.theta) * Math.sin(animationData.phi);
-                positionsArray[i * 3 + 2] = render_r * Math.cos(animationData.theta);
+                // Scale up purely for WebGL visualization size
+                let scale = 3.0;
+                positionsArray[i * 3] = animationData.x * scale;
+                positionsArray[i * 3 + 1] = animationData.y * scale;
+                positionsArray[i * 3 + 2] = animationData.z * scale;
 
                 // Total Hamiltonian Energy = Kinetic (P^2/2m) + Quantum Potential
-                const v2 = Math.pow(animationData.vr, 2) + Math.pow(animationData.vtheta, 2) + Math.pow(animationData.vphi, 2);
-                const E_total = (0.5 * v2) - (p_current * 0.1); // Simplified V_Q approximation
+                const v2 = Math.pow(animationData.vx, 2) + Math.pow(animationData.vy, 2) + Math.pow(animationData.vz, 2);
+                const E_total = (0.5 * v2) - (P0 * 0.1); // Simplified V_Q approximation
 
                 physicsMetadata[i] = {
-                    vx: animationData.vr,
-                    vy: animationData.vtheta,
-                    vz: animationData.vphi,
+                    vx: animationData.vx,
+                    vy: animationData.vy,
+                    vz: animationData.vz,
                     E: E_total,
-                    prob: p_current
+                    prob: P0
                 };
             }
 

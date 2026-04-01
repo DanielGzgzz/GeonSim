@@ -27,105 +27,91 @@ def real_sph_harm(l, m, theta, phi):
     else:
         return Y_c.real
 
-def probability_density(r, theta, phi, n, l, m):
-    """Quantum potential field representing the energetic probability map."""
+def prob_density_cart(x, y, z, n, l, m):
+    """Probability density in Cartesian coordinates."""
+    r = np.sqrt(x**2 + y**2 + z**2)
+    if r < 1e-5:
+        r = 1e-5
+    theta = np.arccos(np.clip(z / r, -1.0, 1.0))
+    phi = np.arctan2(y, x)
     R = R_nl(r, n, l)
     Y = real_sph_harm(l, m, theta, phi)
-    # Clip large values to prevent overflow warnings in power
     val = np.clip(R * Y, -1e100, 1e100)
     return val**2
 
-def simulate_hamiltonian_orbit(n, l, m, num_steps=100000, dt=0.05):
+def simulate_hamiltonian_orbit(n, l, m, num_steps=100000, dt=0.01):
     """
-    Simulates a continuous trajectory using a Hamiltonian energetic approach.
+    Simulates a continuous trajectory using a Hamiltonian energetic approach with Langevin dynamics.
     Weaves a 3D path over time by steering the particle down the Quantum Potential gradients
-    of the Schrödinger wave.
+    of the Schrödinger wave in Cartesian coordinates to avoid pole singularities, and uses
+    a stochastic thermal kick to ensure the particle explores the full volumetric course.
     """
-    # 1. Energetic Constants for this specific harmonic
-    r0 = n**2 * a0 # Baseline expectation radius
-
-    # 2. Initial State (Start slightly off-center to trigger oscillation)
-    r = r0 * 0.9
-    theta = np.pi / 4.0 if l > 0 else np.pi / 2.0
-    phi = 0.0
-
-    vr, vtheta, vphi = 0.0, 0.1, 0.1 # Initial momenta
+    # 1. Initial State
+    x, y, z = float(n*n*a0), 0.1, 0.1
+    vx, vy, vz = 0.0, 2.0, 1.0
 
     # Pre-allocate arrays for speed
     samples_x = np.zeros(num_steps)
     samples_y = np.zeros(num_steps)
     samples_z = np.zeros(num_steps)
 
-    # Small delta for numerical gradients
-    dr = 0.01
-    d_theta = 0.01
-    d_phi = 0.01
+    # Hamiltonian Quantum Potential scaling
+    k_pot = 20.0
+    d = 0.05
 
-    # 3. The Path Integration Loop
     for i in range(num_steps):
         # A. Calculate Hamiltonian Quantum Potential Steering
         # We treat the probability density as an energetic potential well: V_Q = -k * ln(P)
         # The quantum force is F_Q = -grad(V_Q) = k * grad(P) / P
 
-        # Guard against pole singularities and center
-        safe_theta = np.clip(theta, 0.01, np.pi - 0.01)
-        safe_r = max(r, 0.01)
+        P0 = prob_density_cart(x, y, z, n, l, m)
+        Px = prob_density_cart(x+d, y, z, n, l, m)
+        Py = prob_density_cart(x, y+d, z, n, l, m)
+        Pz = prob_density_cart(x, y, z+d, n, l, m)
 
-        # Calculate numerical gradients of the quantum density field
-        p_current = probability_density(safe_r, safe_theta, phi, n, l, m)
-        p_r_plus = probability_density(safe_r + dr, safe_theta, phi, n, l, m)
-        p_theta_plus = probability_density(safe_r, safe_theta + d_theta, phi, n, l, m)
-        p_phi_plus = probability_density(safe_r, safe_theta, phi + d_phi, n, l, m)
+        eps = 1e-10
+        Fx = k_pot * (Px - P0) / (d * (P0 + eps))
+        Fy = k_pot * (Py - P0) / (d * (P0 + eps))
+        Fz = k_pot * (Pz - P0) / (d * (P0 + eps))
 
-        # The energetic force points towards higher probability density (lower quantum potential)
-        grad_r = (p_r_plus - p_current) / dr
-        grad_theta = (p_theta_plus - p_current) / d_theta
-        grad_phi = (p_phi_plus - p_current) / d_phi
-
-        # Normalize the steering force so it acts like F = grad(P)/P
-        steer_strength = 0.05
-        # Prevent division by zero if density is extremely low
-        norm_factor = (p_current + 1e-10)
-
-        # Guard against NaNs from overflow
-        if np.isnan(grad_r) or np.isinf(grad_r): grad_r = 0.0
-        if np.isnan(grad_theta) or np.isinf(grad_theta): grad_theta = 0.0
-        if np.isnan(grad_phi) or np.isinf(grad_phi): grad_phi = 0.0
-
-        F_r = (grad_r / norm_factor) * steer_strength
-        F_theta = (grad_theta / norm_factor) * steer_strength
-        # Scale phi steering to be a steady precession if there's no phi gradient (m=0)
-        # or actively steer if there's a lobed structure in phi.
-        F_phi = (grad_phi / norm_factor) * steer_strength + (0.01 * (abs(m) + 1))
-
-        # Clamp forces to prevent explosive instability and NaNs propagating
-        F_r = np.clip(F_r, -0.5, 0.5)
-        F_theta = np.clip(F_theta, -0.5, 0.5)
-        F_phi = np.clip(F_phi, -0.5, 0.5)
+        # Clamp forces to prevent explosive instability
+        max_F = 100.0
+        Fx = np.clip(Fx, -max_F, max_F)
+        Fy = np.clip(Fy, -max_F, max_F)
+        Fz = np.clip(Fz, -max_F, max_F)
 
         # C. Hamiltonian Integration (Update Momenta / Kinetic Energy)
-        vr += F_r * dt
-        vtheta += F_theta * dt
-        vphi += F_phi * dt
+        vx += Fx * dt
+        vy += Fy * dt
+        vz += Fz * dt
 
         # Energetic thermostat damping (prevents explosive runaway and settles into the well)
-        vr *= 0.98
-        vtheta *= 0.99
-        vphi *= 0.999
+        damping = 0.99
+        vx *= damping
+        vy *= damping
+        vz *= damping
+
+        # Add a stochastic kick (Langevin dynamics) to act as a thermal bath,
+        # ensuring the particle erratically explores the full allowed quantum volume
+        # (the full course) instead of settling into a single resonant ring.
+        kick_strength = 0.5
+        vx += np.random.normal(0, kick_strength)
+        vy += np.random.normal(0, kick_strength)
+        vz += np.random.normal(0, kick_strength)
 
         # D. Update Positions
-        r += vr * dt
-        theta += vtheta * dt
-        phi += vphi * dt
+        x += vx * dt
+        y += vy * dt
+        z += vz * dt
 
-        # E. Convert to Cartesian and Store
-        samples_x[i] = r * np.sin(theta) * np.cos(phi)
-        samples_y[i] = r * np.sin(theta) * np.sin(phi)
-        samples_z[i] = r * np.cos(theta)
+        # E. Store
+        samples_x[i] = x
+        samples_y[i] = y
+        samples_z[i] = z
 
     # Return as r, theta, phi to match your plotting function's expected inputs
     r_out = np.sqrt(samples_x**2 + samples_y**2 + samples_z**2)
-    theta_out = np.arccos(samples_z / (r_out + 1e-10))
+    theta_out = np.arccos(np.clip(samples_z / (r_out + 1e-10), -1.0, 1.0))
     phi_out = np.arctan2(samples_y, samples_x)
 
     return r_out, theta_out, phi_out
@@ -174,12 +160,13 @@ def generate_report(orbitals):
         f.write("against classical Schrödinger probability clouds.\n\n")
         f.write("Rather than using discrete jumps or Monte Carlo probability sampling, these 3D volumes ")
         f.write("are generated by a **single continuous 1D trajectory**. The particle is mathematically 'steered' ")
-        f.write("down the gradients of the Quantum Potential field using an Energetic Integration over 100,000 timesteps ($dt=0.05$).\n\n")
+        f.write("down the gradients of the Quantum Potential field using an Energetic Integration over 100,000 timesteps ($dt=0.01$).\n")
+        f.write("A stochastic Langevin thermostat ensures the particle explores the *full volume course* rather than settling into a resonant ring.\n\n")
 
         f.write("### Simulation Data\n")
-        f.write("- **Integration Method**: Hamiltonian Kinematics (Continuous Time-Step)\n")
+        f.write("- **Integration Method**: Hamiltonian Kinematics with Langevin Thermostat\n")
         f.write("- **Time Steps**: 100,000\n")
-        f.write("- **Forces ($F_r, F_\\theta, F_\\phi$)**: Quantum Potential Gradients ($Q \\propto -\\nabla^2 R / R$)\n\n")
+        f.write("- **Forces ($F_x, F_y, F_z$)**: Quantum Potential Gradients ($Q \\propto -\\nabla^2 R / R$) + Stochastic Kick\n\n")
 
         f.write("## Orbital Cloud Density Maps\n\n")
         f.write("| Orbital | Quantum State ($n, l, m$) | Deterministic Time-Lapse |\n")
