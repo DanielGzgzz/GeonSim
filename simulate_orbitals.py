@@ -22,9 +22,9 @@ def real_sph_harm(l, m, theta, phi):
     # Note: scipy.special.sph_harm_y takes (n, m, theta, phi) where theta is polar and phi is azimuthal.
     Y_c = sph_harm_y(l, abs(m), theta, phi)
     if m < 0:
-        return np.sqrt(2) * (-1)**m * Y_c.imag
+        return np.sqrt(2) * Y_c.imag * (-1)**abs(m)
     elif m > 0:
-        return np.sqrt(2) * (-1)**m * Y_c.real
+        return np.sqrt(2) * Y_c.real * (-1)**abs(m)
     else:
         return Y_c.real
 

@@ -159,10 +159,12 @@
             const norm = Math.sqrt(((2*l + 1)*factorial(l - m_abs)) / (4*Math.PI*factorial(l + m_abs)));
             const P = legendreP(l, m_abs, Math.cos(theta));
 
+            const phase = (m_abs % 2 === 1) ? -1 : 1;
+
             if (m > 0) {
-                return Math.SQRT2 * norm * P * Math.cos(m * phi);
+                return Math.SQRT2 * norm * P * Math.cos(m * phi) * phase;
             } else if (m < 0) {
-                return Math.SQRT2 * norm * P * Math.sin(m_abs * phi);
+                return Math.SQRT2 * norm * P * Math.sin(m_abs * phi) * phase;
             } else {
                 return norm * P;
             }
