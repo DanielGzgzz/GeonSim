@@ -298,7 +298,7 @@
                 let Pz = prob_density_cart(animationData.x, animationData.y, animationData.z + d, n, l_val, m_val);
 
                 // Soften the nodal barriers to allow Langevin crossing without explosive instability
-                let eps = 1e-3;
+                let eps = 1e-8;
                 let Fx = k_pot * (Px - P0) / (d * (P0 + eps));
                 let Fy = k_pot * (Py - P0) / (d * (P0 + eps));
                 let Fz = k_pot * (Pz - P0) / (d * (P0 + eps));

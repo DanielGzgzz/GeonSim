@@ -71,7 +71,7 @@ def simulate_hamiltonian_orbit(n, l, m, num_steps=100000, dt=0.01):
         Pz = prob_density_cart(x, y, z+d, n, l, m)
 
         # Soften the nodal barriers to allow Langevin crossing
-        eps = 1e-3
+        eps = 1e-8
         Fx = k_pot * (Px - P0) / (d * (P0 + eps))
         Fy = k_pot * (Py - P0) / (d * (P0 + eps))
         Fz = k_pot * (Pz - P0) / (d * (P0 + eps))
