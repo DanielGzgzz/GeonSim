@@ -16,10 +16,96 @@
         .formulas h4 { margin: 0 0 5px 0; color: #ccc;}
         .engine-link { display: inline-block; margin-top: 20px; padding: 10px; background: rgba(0,255,255,0.1); border: 1px solid #0ff; color: #0ff; text-decoration: none; border-radius: 4px; text-align: center; width: 100%; box-sizing: border-box; font-weight: bold;}
         .engine-link:hover { background: rgba(0,255,255,0.2); }
+        button.btn-primary { background: #0ff; color: #000; border: none; padding: 8px 12px; font-weight: bold; cursor: pointer; border-radius: 4px; width: 100%; margin-top: 10px;}
+        button.btn-primary:hover { background: #fff; }
+
+        /* Research Guide Overlay */
+        #research-guide {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-family: sans-serif;
+        }
+        .guide-content {
+            background: #111;
+            border: 1px solid #0ff;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 0 20px rgba(0,255,255,0.2);
+        }
+        .guide-content h1 { color: #0ff; margin-top: 0;}
+        .guide-content h2 { color: #0aa; margin-top: 20px; border-bottom: 1px solid #333; padding-bottom: 5px;}
+        .guide-content p { line-height: 1.6; color: #ccc;}
+        .guide-content ul { color: #ccc; line-height: 1.6; margin-left: 20px;}
+        .guide-content li { margin-bottom: 10px; }
+        .guide-content a { color: #0ff; text-decoration: none;}
+        .guide-content a:hover { text-decoration: underline;}
+
+        .btn-close {
+            display: block;
+            width: 200px;
+            margin: 30px auto 0 auto;
+            padding: 10px;
+            background: #0ff;
+            color: #000;
+            text-align: center;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+        }
+        .btn-close:hover { background: #fff;}
+
+        #tour-btn {
+            margin-top: 15px;
+        }
+
     </style>
 </head>
 <body>
     <div id="tooltip"></div>
+
+    <!-- Research Guide Overlay -->
+    <div id="research-guide">
+        <div class="guide-content">
+            <h1>Topological Geon Framework</h1>
+            <p>Welcome to the deterministic WebGL/WebGPU physics engine. This simulation aims to unify Quantum Mechanics and Relativity using the Topological Geon framework.</p>
+
+            <h2>Core Mechanics</h2>
+            <ul>
+                <li><strong>The Vacuum Fluid:</strong> The vacuum is modeled as an active, hyper-elastic zero-point tensor fluid. Planck's constant ($h$) is defined natively as the kinematic action viscosity of this medium.</li>
+                <li><strong>Particle Topology:</strong> Zero-dimensional point particles are eliminated. Electrons are rendered as continuous $4\pi$ Möbius double-loops and protons as (3,2)-trefoil knots. Mass emerges as the geometric surface tension required to confine this trapped light against Casimir vacuum pressure.</li>
+                <li><strong>Relativistic Kinematics:</strong> Internal wave propagation velocity is hard-coded to $c$. Inertial resistance emerges mechanically as the physical helical stretching of the track. Gravity is driven dynamically via macroscopic geometric shadowing of the Casimir fluid pressure.</li>
+                <li><strong>Electromagnetism (Gauss Shell Illusion):</strong> Scalar point charges are replaced by the integration of internally varying radial electric vectors. Transverse vectors destructively interfere, allowing the surviving inward flux to project a classical inverse-square Gauss shell monopole.</li>
+            </ul>
+
+            <h2>Explore the Research</h2>
+            <p>This interactive simulation is a companion to theoretical research. You can explore the foundational papers on ResearchGate:</p>
+            <ul>
+                <li><a href="https://www.researchgate.net/profile/Daniel-Gonzalez-299" target="_blank">Daniel Gonzalez on ResearchGate</a></li>
+            </ul>
+
+            <h2>How to Use This Simulator</h2>
+            <p>
+                1. <strong>Select an Orbital State:</strong> Use the left panel to choose a quantum state (e.g., 1s, 2p, 3d).<br><br>
+                2. <strong>Recalculate Path:</strong> Generate a deterministic continuous path driven by Hamiltonian fluid forces.<br><br>
+                3. <strong>Inspect State:</strong> Hover your mouse over the forming particle track in the center to view real-time instantaneous physical momentum, binding energy, and vacuum density.<br><br>
+                4. <strong>Compare:</strong> The right panel displays the standard Schrödinger probability cloud for reference.
+            </p>
+
+            <button class="btn-close" onclick="document.getElementById('research-guide').style.display='none'">Start Simulation</button>
+        </div>
+    </div>
+
 
     <div id="ref-panel">
         <span style="display:block; font-size:13px; color:#fff; font-weight:bold; margin-bottom:8px;">Standard Schrödinger Reference</span>
@@ -92,6 +178,7 @@
         </div>
 
         <a href="langevin.html" class="engine-link">View 2D Langevin Nodal Analogue</a>
+        <button id="tour-btn" class="btn-primary" onclick="document.getElementById('research-guide').style.display='flex'">View Research Guide</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
