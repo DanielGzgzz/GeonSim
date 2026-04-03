@@ -70,29 +70,22 @@ def simulate_hamiltonian_orbit(n, l, m, num_steps=100000, dt=0.01):
         Py = prob_density_cart(x, y+d, z, n, l, m)
         Pz = prob_density_cart(x, y, z+d, n, l, m)
 
-        eps = 1e-10
+        # Soften the nodal barriers to allow Langevin crossing
+        eps = 1e-3
         Fx = k_pot * (Px - P0) / (d * (P0 + eps))
         Fy = k_pot * (Py - P0) / (d * (P0 + eps))
         Fz = k_pot * (Pz - P0) / (d * (P0 + eps))
 
-        # Adaptive Time-Stepping (dt)
-        # As the particle gets close to a node (where the gradient force ∇P/P gets massive),
-        # the simulation needs to take much smaller micro-steps so the math doesn't explode.
-        F_mag = np.sqrt(Fx**2 + Fy**2 + Fz**2)
-        dynamic_dt = dt
-        if F_mag > 50.0:
-            dynamic_dt = dt * (50.0 / F_mag)
-
         # Clamp forces to prevent explosive instability
-        max_F = 1000.0
+        max_F = 100.0
         Fx = np.clip(Fx, -max_F, max_F)
         Fy = np.clip(Fy, -max_F, max_F)
         Fz = np.clip(Fz, -max_F, max_F)
 
         # C. Hamiltonian Integration (Update Momenta / Kinetic Energy)
-        vx += Fx * dynamic_dt
-        vy += Fy * dynamic_dt
-        vz += Fz * dynamic_dt
+        vx += Fx * dt
+        vy += Fy * dt
+        vz += Fz * dt
 
         # Energetic thermostat damping (prevents explosive runaway and settles into the well)
         damping = 0.99
@@ -101,19 +94,17 @@ def simulate_hamiltonian_orbit(n, l, m, num_steps=100000, dt=0.01):
         vz *= damping
 
         # Add a stochastic kick (Langevin dynamics) to act as a thermal bath,
-        # ensuring the particle erratically explores the full allowed quantum volume.
-        # Increase the Langevin Kick (D): The stochastic ZPF noise injected into the velocity
-        # update must be high enough to allow the particle to momentarily overcome
-        # the infinite repulsive potential barriers at the nodal planes.
-        kick_strength = 4.5
+        # ensuring the particle erratically explores the full allowed quantum volume
+        # (the full course) instead of settling into a single resonant ring.
+        kick_strength = 0.5
         vx += np.random.normal(0, kick_strength)
         vy += np.random.normal(0, kick_strength)
         vz += np.random.normal(0, kick_strength)
 
         # D. Update Positions
-        x += vx * dynamic_dt
-        y += vy * dynamic_dt
-        z += vz * dynamic_dt
+        x += vx * dt
+        y += vy * dt
+        z += vz * dt
 
         # E. Store
         samples_x[i] = x
@@ -196,7 +187,7 @@ if __name__ == "__main__":
         ("4f (m=3)", 4, 3, 3),
     ]
 
-    num_iterations = 200000
+    num_iterations = 25000
 
     results = []
     for name, n, l, m in states_to_simulate:

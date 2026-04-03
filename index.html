@@ -297,29 +297,21 @@
                 let Py = prob_density_cart(animationData.x, animationData.y + d, animationData.z, n, l_val, m_val);
                 let Pz = prob_density_cart(animationData.x, animationData.y, animationData.z + d, n, l_val, m_val);
 
-                let eps = 1e-10;
+                // Soften the nodal barriers to allow Langevin crossing without explosive instability
+                let eps = 1e-3;
                 let Fx = k_pot * (Px - P0) / (d * (P0 + eps));
                 let Fy = k_pot * (Py - P0) / (d * (P0 + eps));
                 let Fz = k_pot * (Pz - P0) / (d * (P0 + eps));
 
-                // Adaptive Time-Stepping (dt)
-                // As the particle gets close to a node (where the gradient force ∇P/P gets massive),
-                // the simulation needs to take much smaller micro-steps so the math doesn't explode.
-                let F_mag = Math.sqrt(Fx*Fx + Fy*Fy + Fz*Fz);
-                let dynamic_dt = dt;
-                if (F_mag > 50.0) {
-                    dynamic_dt = dt * (50.0 / F_mag);
-                }
-
-                let max_F = 1000.0;
+                let max_F = 100.0;
                 Fx = Math.max(-max_F, Math.min(max_F, Fx));
                 Fy = Math.max(-max_F, Math.min(max_F, Fy));
                 Fz = Math.max(-max_F, Math.min(max_F, Fz));
 
                 // Update Kinetic Energy / Momenta
-                animationData.vx += Fx * dynamic_dt;
-                animationData.vy += Fy * dynamic_dt;
-                animationData.vz += Fz * dynamic_dt;
+                animationData.vx += Fx * dt;
+                animationData.vy += Fy * dt;
+                animationData.vz += Fz * dt;
 
                 // Energetic thermostat damping (to stay in well)
                 let damping = 0.99;
@@ -328,18 +320,15 @@
                 animationData.vz *= damping;
 
                 // Add stochastic kick (Langevin) to explore the full course
-                // Increase the Langevin Kick (D): The stochastic ZPF noise injected into the velocity
-                // update must be high enough to allow the particle to momentarily overcome
-                // the infinite repulsive potential barriers at the nodal planes.
-                let kick = 4.5;
+                let kick = 0.5;
                 animationData.vx += randomNormal() * kick;
                 animationData.vy += randomNormal() * kick;
                 animationData.vz += randomNormal() * kick;
 
                 // Update Position
-                animationData.x += animationData.vx * dynamic_dt;
-                animationData.y += animationData.vy * dynamic_dt;
-                animationData.z += animationData.vz * dynamic_dt;
+                animationData.x += animationData.vx * dt;
+                animationData.y += animationData.vy * dt;
+                animationData.z += animationData.vz * dt;
 
                 // Scale up purely for WebGL visualization size
                 let scale = 3.0;
