@@ -19,93 +19,86 @@
         button.btn-primary { background: #0ff; color: #000; border: none; padding: 8px 12px; font-weight: bold; cursor: pointer; border-radius: 4px; width: 100%; margin-top: 10px;}
         button.btn-primary:hover { background: #fff; }
 
-        /* Research Guide Overlay */
-        #research-guide {
+
+        /* Interactive Tour */
+        #tour-dialog {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9);
-            z-index: 100;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            bottom: 30px; left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(10, 20, 20, 0.95);
+            border: 2px solid #0ff;
+            border-radius: 8px;
+            padding: 20px;
+            width: 400px;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.4);
+            display: none;
+            flex-direction: column;
             color: #fff;
             font-family: sans-serif;
         }
-        .guide-content {
-            background: #111;
-            border: 1px solid #0ff;
-            border-radius: 8px;
-            padding: 30px;
-            max-width: 800px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 0 20px rgba(0,255,255,0.2);
+        #tour-dialog h3 {
+            margin: 0 0 10px 0;
+            color: #0ff;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
         }
-        .guide-content h1 { color: #0ff; margin-top: 0;}
-        .guide-content h2 { color: #0aa; margin-top: 20px; border-bottom: 1px solid #333; padding-bottom: 5px;}
-        .guide-content p { line-height: 1.6; color: #ccc;}
-        .guide-content ul { color: #ccc; line-height: 1.6; margin-left: 20px;}
-        .guide-content li { margin-bottom: 10px; }
-        .guide-content a { color: #0ff; text-decoration: none;}
-        .guide-content a:hover { text-decoration: underline;}
-
-        .btn-close {
-            display: block;
-            width: 200px;
-            margin: 30px auto 0 auto;
-            padding: 10px;
+        #tour-content {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #ccc;
+            margin-bottom: 15px;
+            min-height: 60px;
+        }
+        .tour-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tour-btn {
             background: #0ff;
             color: #000;
-            text-align: center;
+            border: none;
+            padding: 8px 15px;
             font-weight: bold;
             border-radius: 4px;
             cursor: pointer;
-            border: none;
-            font-size: 16px;
         }
-        .btn-close:hover { background: #fff;}
-
-        #tour-btn {
-            margin-top: 15px;
+        .tour-btn:hover { background: #fff; }
+        .tour-btn.secondary {
+            background: #444; color: #fff;
         }
+        .tour-btn.secondary:hover { background: #666; }
+        .tour-progress { font-size: 12px; color: #888; }
 
-    </style>
+        .highlight-tour {
+            box-shadow: 0 0 15px 5px #0ff;
+            animation: pulse 1.5s infinite;
+            z-index: 1001;
+            position: relative;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 10px 2px #0ff; }
+            50% { box-shadow: 0 0 20px 8px #0ff; }
+            100% { box-shadow: 0 0 10px 2px #0ff; }
+        }
+            </style>
+
 </head>
 <body>
     <div id="tooltip"></div>
 
-    <!-- Research Guide Overlay -->
-    <div id="research-guide">
-        <div class="guide-content">
-            <h1>Topological Geon Framework</h1>
-            <p>Welcome to the deterministic WebGL/WebGPU physics engine. This simulation aims to unify Quantum Mechanics and Relativity using the Topological Geon framework.</p>
 
-            <h2>Core Mechanics</h2>
-            <ul>
-                <li><strong>The Vacuum Fluid:</strong> The vacuum is modeled as an active, hyper-elastic zero-point tensor fluid. Planck's constant ($h$) is defined natively as the kinematic action viscosity of this medium.</li>
-                <li><strong>Particle Topology:</strong> Zero-dimensional point particles are eliminated. Electrons are rendered as continuous $4\pi$ Möbius double-loops and protons as (3,2)-trefoil knots. Mass emerges as the geometric surface tension required to confine this trapped light against Casimir vacuum pressure.</li>
-                <li><strong>Relativistic Kinematics:</strong> Internal wave propagation velocity is hard-coded to $c$. Inertial resistance emerges mechanically as the physical helical stretching of the track. Gravity is driven dynamically via macroscopic geometric shadowing of the Casimir fluid pressure.</li>
-                <li><strong>Electromagnetism (Gauss Shell Illusion):</strong> Scalar point charges are replaced by the integration of internally varying radial electric vectors. Transverse vectors destructively interfere, allowing the surviving inward flux to project a classical inverse-square Gauss shell monopole.</li>
-            </ul>
-
-            <h2>Explore the Research</h2>
-            <p>This interactive simulation is a companion to theoretical research. You can explore the foundational papers on ResearchGate:</p>
-            <ul>
-                <li><a href="https://www.researchgate.net/profile/Daniel-Gonzalez-299" target="_blank">Daniel Gonzalez on ResearchGate</a></li>
-            </ul>
-
-            <h2>How to Use This Simulator</h2>
-            <p>
-                1. <strong>Select an Orbital State:</strong> Use the left panel to choose a quantum state (e.g., 1s, 2p, 3d).<br><br>
-                2. <strong>Recalculate Path:</strong> Generate a deterministic continuous path driven by Hamiltonian fluid forces.<br><br>
-                3. <strong>Inspect State:</strong> Hover your mouse over the forming particle track in the center to view real-time instantaneous physical momentum, binding energy, and vacuum density.<br><br>
-                4. <strong>Compare:</strong> The right panel displays the standard Schrödinger probability cloud for reference.
-            </p>
-
-            <button class="btn-close" onclick="document.getElementById('research-guide').style.display='none'">Start Simulation</button>
+    <!-- Interactive Tour Dialog -->
+    <div id="tour-dialog">
+        <h3 id="tour-title">Tour</h3>
+        <div id="tour-content">Content</div>
+        <div class="tour-controls">
+            <button id="tour-prev" class="tour-btn secondary" onclick="prevTourStep()">Previous</button>
+            <span id="tour-progress" class="tour-progress">1/5</span>
+            <button id="tour-next" class="tour-btn" onclick="nextTourStep()">Next</button>
         </div>
     </div>
-
 
     <div id="ref-panel">
         <span style="display:block; font-size:13px; color:#fff; font-weight:bold; margin-bottom:8px;">Standard Schrödinger Reference</span>
@@ -501,6 +494,97 @@
             renderer.render(scene, camera);
         }
         animate();
-    </script>
+
+        // Interactive Tour Logic
+        const tourSteps = [
+            {
+                title: "Topological Geon Framework",
+                content: "Welcome! This deterministic WebGL/WebGPU engine aims to unify Quantum Mechanics and Relativity.<br><br>Here, point particles are eliminated. Electrons are continuous Möbius double-loops confined by the Casimir vacuum pressure.",
+                target: null
+            },
+            {
+                title: "Mathematical Review: Determinism",
+                content: "Unlike standard probabilistic QM, this engine is strictly <b>mathematically deterministic</b>.<br><br>It strictly follows mathematician's continuous derivative rules. By resolving nodal boundaries with continuous differentiable forces, it avoids singularities and probabilistic jumping.",
+                target: null
+            },
+            {
+                title: "Interactive: Orbital States",
+                content: "Let's test the deterministic nature. <b>Change the orbital state below</b> to a higher energy configuration (like 3d or 4f). Notice how the deterministic fluid path restructures.",
+                target: "orbitalSelect"
+            },
+            {
+                title: "Interactive: Recalculate",
+                content: "Now, <b>click Recalculate Path</b> to generate the new continuous trajectory.<br><br>The simulation computes the Hamiltonian fluid forces dynamically, resolving the trajectory over 300,000 timesteps.",
+                target: "updateBtn"
+            },
+            {
+                title: "Interactive: Inspect the State",
+                content: "<b>Hover your mouse</b> over the central track.<br><br>You'll see real-time kinematics: instantaneous momentum vectors and binding energy derived perfectly from the physical helical stretching of the track.",
+                target: null
+            },
+            {
+                title: "Explore the Research",
+                content: "The engine demonstrates how electromagnetism and mass emerge physically from vacuum topology.<br><br><b>Read the underlying research papers:</b><br><a href='https://www.researchgate.net/profile/Daniel-Gonzalez-299' target='_blank' style='color:#0ff;'>Daniel Gonzalez on ResearchGate</a>",
+                target: null
+            }
+        ];
+
+        let currentTourStep = 0;
+
+        function updateTourUI() {
+            const step = tourSteps[currentTourStep];
+            document.getElementById('tour-title').innerHTML = step.title;
+            document.getElementById('tour-content').innerHTML = step.content;
+            document.getElementById('tour-progress').innerText = `${currentTourStep + 1} / ${tourSteps.length}`;
+
+            document.getElementById('tour-prev').style.display = currentTourStep === 0 ? 'none' : 'inline-block';
+
+            const nextBtn = document.getElementById('tour-next');
+            if (currentTourStep === tourSteps.length - 1) {
+                nextBtn.innerText = "Finish";
+            } else {
+                nextBtn.innerText = step.target ? "OK, I did it" : "Next";
+            }
+
+            // Remove old highlights
+            document.querySelectorAll('.highlight-tour').forEach(el => el.classList.remove('highlight-tour'));
+
+            // Add new highlight
+            if (step.target) {
+                const targetEl = document.getElementById(step.target);
+                if (targetEl) targetEl.classList.add('highlight-tour');
+            }
+        }
+
+        function nextTourStep() {
+            if (currentTourStep < tourSteps.length - 1) {
+                currentTourStep++;
+                updateTourUI();
+            } else {
+                // Finish
+                document.getElementById('tour-dialog').style.display = 'none';
+                document.querySelectorAll('.highlight-tour').forEach(el => el.classList.remove('highlight-tour'));
+            }
+        }
+
+        function prevTourStep() {
+            if (currentTourStep > 0) {
+                currentTourStep--;
+                updateTourUI();
+            }
+        }
+
+        function startTour() {
+            currentTourStep = 0;
+            document.getElementById('tour-dialog').style.display = 'flex';
+            updateTourUI();
+        }
+
+        // Hook up the View Research Guide button
+        document.getElementById('tour-btn').onclick = startTour;
+
+        // Auto-start the tour on load (optional, but good for demo)
+        setTimeout(startTour, 1000);
+</script>
 </body>
 </html>
