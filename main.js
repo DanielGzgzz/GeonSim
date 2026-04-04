@@ -10,6 +10,107 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.autoClearColor = false; // We will clear manually when needed for the FBO blur
 document.body.appendChild(renderer.domElement);
 
+// -------------------------------------------------------------
+// Global Simulation Parameters
+// -------------------------------------------------------------
+window.current_n = 4;
+window.current_l = 3;
+window.current_m = 1;
+window.zpf_heat = 4.5;
+window.vq_coupling = 20.0;
+
+// -------------------------------------------------------------
+// Hamiltonian Quantum Potential / Langevin Thermostat Functions
+// -------------------------------------------------------------
+function factorial(n) {
+    let res = 1;
+    for(let i=2; i<=n; i++) res *= i;
+    return res;
+}
+
+function legendreP(l, m, x) {
+    const m_abs = Math.abs(m);
+    if (l === 0) return 1.0;
+    if (l === 1) {
+        if (m_abs === 0) return x;
+        if (m_abs === 1) return -Math.sqrt(1.0 - x*x);
+    }
+    if (l === 2) {
+        if (m_abs === 0) return 0.5 * (3.0 * x*x - 1.0);
+        if (m_abs === 1) return -3.0 * x * Math.sqrt(1.0 - x*x);
+        if (m_abs === 2) return 3.0 * (1.0 - x*x);
+    }
+    if (l === 3) {
+        if (m_abs === 0) return 0.5 * (5.0 * Math.pow(x,3) - 3.0 * x);
+        if (m_abs === 1) return -1.5 * (5.0 * x*x - 1.0) * Math.sqrt(1.0 - x*x);
+        if (m_abs === 2) return 15.0 * x * (1.0 - x*x);
+        if (m_abs === 3) return -15.0 * Math.pow(1.0 - x*x, 1.5);
+    }
+    if (l === 4) {
+        if (m_abs === 0) return 0.125 * (35.0 * Math.pow(x,4) - 30.0 * x*x + 3.0);
+        if (m_abs === 1) return -2.5 * (7.0 * Math.pow(x,3) - 3.0 * x) * Math.sqrt(1.0 - x*x);
+        if (m_abs === 2) return 7.5 * (7.0 * x*x - 1.0) * (1.0 - x*x);
+        if (m_abs === 3) return -105.0 * x * Math.pow(1.0 - x*x, 1.5);
+        if (m_abs === 4) return 105.0 * Math.pow(1.0 - x*x, 2.0);
+    }
+    return 0.0;
+}
+
+function realSphericalHarmonic(l, m, theta, phi) {
+    const m_abs = Math.abs(m);
+    const N = Math.sqrt((2.0 * l + 1.0) / (4.0 * Math.PI) * factorial(l - m_abs) / factorial(l + m_abs));
+    const P = legendreP(l, m_abs, Math.cos(theta));
+    const CondonShortley = (m_abs % 2 === 1) ? -1 : 1;
+    let Y = N * P * CondonShortley;
+
+    if (m > 0) return Math.sqrt(2.0) * Y * Math.cos(m_abs * phi);
+    if (m < 0) return Math.sqrt(2.0) * Y * Math.sin(m_abs * phi);
+    return Y;
+}
+
+function calc_R_nl(r, n, l_val) {
+    const a0 = 1.0;
+    const rho = 2.0 * r / (n * a0);
+    const norm = Math.sqrt(Math.pow(2.0 / (n * a0), 3) * factorial(n - l_val - 1) / (2.0 * n * factorial(n + l_val)));
+
+    let laguerre = 0.0;
+    if (n===1 && l_val===0) laguerre = 1.0;
+    else if (n===2 && l_val===0) laguerre = 1.0 - 0.5 * rho;
+    else if (n===2 && l_val===1) laguerre = 1.0;
+    else if (n===3 && l_val===0) laguerre = 1.0 - rho + (1.0/6.0)*rho*rho;
+    else if (n===3 && l_val===1) laguerre = 1.0 - (1.0/4.0)*rho;
+    else if (n===3 && l_val===2) laguerre = 1.0;
+    else if (n===4 && l_val===0) laguerre = 1.0 - (3.0/2.0)*rho + (1.0/2.0)*Math.pow(rho,2) - (1.0/24.0)*Math.pow(rho,3);
+    else if (n===4 && l_val===1) laguerre = 1.0 - (3.0/5.0)*rho + (1.0/20.0)*Math.pow(rho,2);
+    else if (n===4 && l_val===2) laguerre = 1.0 - (1.0/12.0)*rho;
+    else if (n===4 && l_val===3) laguerre = 1.0;
+    else if (n===5 && l_val===0) laguerre = 1.0 - (4.0/5.0)*rho + (4.0/25.0)*Math.pow(rho,2) - (4.0/375.0)*Math.pow(rho,3) + (1.0/3750.0)*Math.pow(rho,4);
+    else if (n===5 && l_val===2) laguerre = 1.0 - (2.0/15.0)*rho + (1.0/210.0)*Math.pow(rho,2);
+    else if (n===5 && l_val===3) laguerre = 1.0 - (1.0/20.0)*rho;
+    else if (n===5 && l_val===4) laguerre = 1.0;
+
+    return norm * Math.exp(-rho / 2.0) * Math.pow(rho, l_val) * laguerre;
+}
+
+function prob_density_cart(x, y, z, n, l_val, m_val) {
+    let r = Math.sqrt(x*x + y*y + z*z);
+    if (r < 1e-5) r = 1e-5;
+    let theta = Math.acos(Math.max(-1.0, Math.min(1.0, z / r)));
+    let phi = Math.atan2(y, x);
+    let R = calc_R_nl(r, n, l_val);
+    let Y = realSphericalHarmonic(l_val, m_val, theta, phi);
+    return Math.pow(R * Y, 2);
+}
+
+function randomNormal() {
+    let u = 0, v = 0;
+    while(u === 0) u = Math.random();
+    while(v === 0) v = Math.random();
+    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+
+
 // -----------------------------------------------------------------------------
 // Framebuffer Object (FBO) Accumulation (Time-Lapse Optical Blur)
 // -----------------------------------------------------------------------------
@@ -524,18 +625,66 @@ function updatePhysics(time, dtMultiplier) {
     const tangentialDir = electronVelocity.clone().normalize();
     const transverseDir = new THREE.Vector3().crossVectors(radialDir, tangentialDir).normalize();
 
-    const wobbleStrength = Math.sin(time * 0.5) * 0.1;
-    const pilotWaveResonance = transverseDir.multiplyScalar(wobbleStrength);
+    // -------------------------------------------------------------
+    // Hamiltonian Quantum Potential / Langevin Thermostat Update
+    // -------------------------------------------------------------
 
-    // Total Acceleration Force
-    const totalForce = coulombForce.clone().add(gravityForce).add(pilotWaveResonance);
+    // Scale down physical space to match the abstract probability density space
+    let sim_scale = 0.5;
+    let x = electronMesh.position.x * sim_scale;
+    let y = electronMesh.position.y * sim_scale;
+    let z = electronMesh.position.z * sim_scale;
+    let d = 0.05;
 
-    // Apply acceleration to velocities (a = F/m proxy), scaled by dt multiplier for stable sub-stepping
-    const electronAcceleration = totalForce.clone().multiplyScalar((1.0 / ELECTRON_MASS_PROXY) * dtMultiplier);
-    const protonAcceleration = totalForce.clone().negate().multiplyScalar((1.0 / PROTON_MASS_PROXY) * dtMultiplier);
+    // Calculate Quantum Potential Gradients
+    let P0 = prob_density_cart(x, y, z, window.current_n, window.current_l, window.current_m);
+    let Px = prob_density_cart(x + d, y, z, window.current_n, window.current_l, window.current_m);
+    let Py = prob_density_cart(x, y + d, z, window.current_n, window.current_l, window.current_m);
+    let Pz = prob_density_cart(x, y, z + d, window.current_n, window.current_l, window.current_m);
+
+    // Soften the nodal barriers
+    let eps = 1e-8;
+    let Fx = window.vq_coupling * (Px - P0) / (d * (P0 + eps));
+    let Fy = window.vq_coupling * (Py - P0) / (d * (P0 + eps));
+    let Fz = window.vq_coupling * (Pz - P0) / (d * (P0 + eps));
+
+    // Clamp V_Q Forces to prevent explosion
+    let max_F = 200.0;
+    Fx = Math.max(-max_F, Math.min(max_F, Fx));
+    Fy = Math.max(-max_F, Math.min(max_F, Fy));
+    Fz = Math.max(-max_F, Math.min(max_F, Fz));
+    let vqForce = new THREE.Vector3(Fx, Fy, Fz).multiplyScalar(1.0);
+
+    // Total Acceleration Force: VQ Gradient now drives the pilot wave
+    const totalForce = coulombForce.clone().add(gravityForce).add(vqForce);
+
+    // Adaptive time-stepping
+    let F_mag = Math.sqrt(Fx*Fx + Fy*Fy + Fz*Fz);
+    let dynamic_dt = dtMultiplier;
+    if (F_mag > 50.0) {
+        dynamic_dt = dtMultiplier * (50.0 / F_mag);
+    }
+
+    // Apply acceleration to velocities
+    const electronAcceleration = totalForce.clone().multiplyScalar((1.0 / ELECTRON_MASS_PROXY) * dynamic_dt);
+    const protonAcceleration = totalForce.clone().negate().multiplyScalar((1.0 / PROTON_MASS_PROXY) * dynamic_dt);
 
     electronVelocity.add(electronAcceleration);
+
+    // Langevin Thermostat (ZPF Kicks)
+    // Only apply if we have a valid window.zpf_heat
+    if (window.zpf_heat > 0) {
+        let kick = Math.sqrt(2.0 * window.zpf_heat * dynamic_dt) * 0.5; // Scaled down for visual stability
+        electronVelocity.x += randomNormal() * kick;
+        electronVelocity.y += randomNormal() * kick;
+        electronVelocity.z += randomNormal() * kick;
+    }
+
+    // Minimal Damping to keep particle in the V_Q well
+    electronVelocity.multiplyScalar(0.999);
+
     protonVelocity.add(protonAcceleration);
+    protonVelocity.multiplyScalar(0.99); // Damping on proton
 
     // Hard-Clamp the Velocity to roughly v = alpha * c
     const maxVelocity = ORBITAL_C_PROXY * ALPHA;
@@ -547,9 +696,8 @@ function updatePhysics(time, dtMultiplier) {
         protonVelocity.setLength(maxProtonVelocity);
     }
 
-    // Apply velocities to positions
-    electronMesh.position.add(electronVelocity.clone().multiplyScalar(dtMultiplier));
-    protonMesh.position.add(protonVelocity.clone().multiplyScalar(dtMultiplier));
+    electronMesh.position.add(electronVelocity.clone().multiplyScalar(dynamic_dt));
+    protonMesh.position.add(protonVelocity.clone().multiplyScalar(dynamic_dt));
 
     // Orient particles strictly perpendicular to their direction of motion
     const eLookTarget = electronMesh.position.clone().add(electronVelocity);
