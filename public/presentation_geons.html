@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Topological Deconvolution of the Electron: Bypassing Magnetic Astigmatism in 4D-STEM using a 4π Möbius Geon Framework</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; }
+        .slider-container {
+            position: relative;
+            width: 100%;
+            padding-top: 100%; /* 1:1 Aspect Ratio */
+            overflow: hidden;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .slider-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .slider-image.after {
+            clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
+        }
+        .slider {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 4px;
+            background: white;
+            cursor: ew-resize;
+            transform: translateX(-50%);
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .slider-handle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px;
+            height: 32px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        .slider-handle::before, .slider-handle::after {
+            content: '';
+            width: 0;
+            height: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+        }
+        .slider-handle::before {
+            border-right: 6px solid #334155;
+            margin-right: 4px;
+        }
+        .slider-handle::after {
+            border-left: 6px solid #334155;
+            margin-left: 4px;
+        }
+        .labels {
+            position: absolute;
+            top: 1rem;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 1rem;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .label {
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <header class="bg-white shadow-sm py-12 px-4 sm:px-6 lg:px-8 mb-12">
+        <div class="max-w-4xl mx-auto text-center">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-6">
+                Topological Deconvolution of the Electron: Bypassing Magnetic Astigmatism in 4D-STEM using a 4π Möbius Geon Framework
+            </h1>
+            <p class="text-xl text-slate-600 font-medium mb-4">Daniel Gezin</p>
+            <div class="flex justify-center space-x-6 text-sm">
+                <a href="https://orcid.org/0009-0003-7309-7050" class="text-blue-600 hover:text-blue-800 transition-colors" target="_blank" rel="noopener noreferrer">ORCID: 0009-0003-7309-7050</a>
+                <a href="https://www.researchgate.net/profile/Daniel-Gezin/research" class="text-blue-600 hover:text-blue-800 transition-colors" target="_blank" rel="noopener noreferrer">ResearchGate: Daniel Gezin</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+
+        <section class="bg-white rounded-xl shadow-md p-8 mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 border-b pb-2 mb-6">Abstract</h2>
+            <p class="text-slate-700 leading-relaxed mb-4">
+                Standard Scanning Transmission Electron Microscopy (STEM) is fundamentally limited by magnetic astigmatism, typically treated as a hardware aberration requiring complex multipole stigmators to correct. However, under the Topological Geon framework, this astigmatism is revealed to be the intrinsic topological shadow of the electron itself, modeled as a 4π Möbius double-loop.
+            </p>
+            <p class="text-slate-700 leading-relaxed">
+                By acknowledging the true geometric structure of the electron probe, we can mathematically bypass stigmator hardware entirely. Using deterministic Fourier inversion with an anisotropic Geon Point Spread Function (PSF), we strip away the Zero-Point Field (ZPF) fluid friction floor. This approach eliminates spatial blur and unlocks unprecedented sub-picometer geometric mapping across organic molecular networks, 2D continuous lattices, and complex metal oxide columns.
+            </p>
+        </section>
+
+        <section class="bg-white rounded-xl shadow-md p-8 mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 border-b pb-2 mb-6">The Mathematics</h2>
+
+            <div class="mb-8">
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">1. Anisotropic Geon PSF</h3>
+                <p class="text-slate-600 mb-4">The Point Spread Function (PSF) represents the projected physical drag of a circularly polarized 4π Möbius double-loop, dominated by quadrupole structural drag (A = 0.8).</p>
+                <div class="bg-slate-50 p-6 rounded-lg overflow-x-auto text-center">
+                    $$ PSF_{geon}(k_x, k_y) = e^{-r^2/2} \cdot \left[1 + A \cdot \cos(2\theta) \cdot e^{-r} \right] $$
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">2. Deterministic Fourier Inversion (Wiener Filter)</h3>
+                <p class="text-slate-600 mb-4">We apply this spatial frequency deconvolution to isolate the raw diffraction frame. The constant \(\epsilon = 10^{-4}\) defines the Zero-Point Field (ZPF) fluid friction floor, stabilizing the inversion.</p>
+                <div class="bg-slate-50 p-6 rounded-lg overflow-x-auto text-center">
+                    $$ O_{true}(x,y) = \mathcal{F}^{-1} \left\{ \frac{\mathcal{F}\{I_{raw}\}}{PSF_{geon} + \epsilon} \right\} $$
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-2xl font-bold text-slate-900 border-b pb-2 mb-8">Results Matrix: Deterministic Deconvolution</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+
+                <!-- Target 1: Biotin -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Biotin Molecular Crystal</h3>
+                    <p class="text-sm text-slate-500 mb-6 h-10">Sub-picometer organic hydrogen-bond networks revealed by stripping topological blur.</p>
+
+                    <div class="slider-container" id="slider-biotin">
+                        <img src="assets/deconvolution/biotin_control.png" alt="Biotin Control" class="slider-image before">
+                        <img src="assets/deconvolution/biotin_experimental.png" alt="Biotin Experimental" class="slider-image after" id="after-biotin">
+                        <div class="labels">
+                            <span class="label">Control (CoM)</span>
+                            <span class="label">Geon Deconvolution</span>
+                        </div>
+                        <div class="slider" id="handle-biotin">
+                            <div class="slider-handle"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Target 2: Ni(dppf)Cl2 -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Ni(dppf)Cl₂</h3>
+                    <p class="text-sm text-slate-500 mb-6 h-10">Complex organometallic bonding topologies and orbital overlaps distinctly resolved.</p>
+
+                    <div class="slider-container" id="slider-nidppfcl2">
+                        <img src="assets/deconvolution/nidppfcl2_control.png" alt="Ni(dppf)Cl2 Control" class="slider-image before">
+                        <img src="assets/deconvolution/nidppfcl2_experimental.png" alt="Ni(dppf)Cl2 Experimental" class="slider-image after" id="after-nidppfcl2">
+                        <div class="labels">
+                            <span class="label">Control (CoM)</span>
+                            <span class="label">Geon Deconvolution</span>
+                        </div>
+                        <div class="slider" id="handle-nidppfcl2">
+                            <div class="slider-handle"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Target 3: Graphene -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Monolayer Graphene</h3>
+                    <p class="text-sm text-slate-500 mb-6 h-10">Removal of spatial blur across a continuous 2D hexagonal atomic lattice.</p>
+
+                    <div class="slider-container" id="slider-graphene">
+                        <img src="assets/deconvolution/graphene_control.png" alt="Graphene Control" class="slider-image before">
+                        <img src="assets/deconvolution/graphene_experimental.png" alt="Graphene Experimental" class="slider-image after" id="after-graphene">
+                        <div class="labels">
+                            <span class="label">Control (CoM)</span>
+                            <span class="label">Geon Deconvolution</span>
+                        </div>
+                        <div class="slider" id="handle-graphene">
+                            <div class="slider-handle"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Target 4: SrTiO3 -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Strontium Titanate (SrTiO₃)</h3>
+                    <p class="text-sm text-slate-500 mb-6 h-10">Absolute separation of heavy metal columns from light oxygen columns.</p>
+
+                    <div class="slider-container" id="slider-srtio3">
+                        <img src="assets/deconvolution/srtio3_control.png" alt="SrTiO3 Control" class="slider-image before">
+                        <img src="assets/deconvolution/srtio3_experimental.png" alt="SrTiO3 Experimental" class="slider-image after" id="after-srtio3">
+                        <div class="labels">
+                            <span class="label">Control (CoM)</span>
+                            <span class="label">Geon Deconvolution</span>
+                        </div>
+                        <div class="slider" id="handle-srtio3">
+                            <div class="slider-handle"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-slate-900 text-slate-400 py-8 text-center text-sm">
+        <p>&copy; 2026 Daniel Gezin. All Rights Reserved.</p>
+        <p class="mt-2">Generated dynamically via Autonomous Deployment Framework.</p>
+    </footer>
+
+    <script>
+        function setupSlider(containerId, handleId, afterImageId) {
+            const container = document.getElementById(containerId);
+            const slider = document.getElementById(handleId);
+            const afterImage = document.getElementById(afterImageId);
+
+            let isDragging = false;
+
+            function updateSliderPosition(e) {
+                const rect = container.getBoundingClientRect();
+                let x = e.clientX || (e.touches && e.touches[0].clientX);
+                if (x === undefined) return;
+
+                x = x - rect.left;
+
+                // Boundaries
+                const width = rect.width;
+                if (x < 0) x = 0;
+                if (x > width) x = width;
+
+                const percentage = (x / width) * 100;
+
+                slider.style.left = `${percentage}%`;
+                afterImage.style.clipPath = `polygon(${percentage}% 0, 100% 0, 100% 100%, ${percentage}% 100%)`;
+            }
+
+            slider.addEventListener('mousedown', () => isDragging = true);
+            container.addEventListener('mouseup', () => isDragging = false);
+            container.addEventListener('mouseleave', () => isDragging = false);
+
+            container.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                updateSliderPosition(e);
+            });
+
+            // Touch support
+            slider.addEventListener('touchstart', () => isDragging = true);
+            container.addEventListener('touchend', () => isDragging = false);
+            container.addEventListener('touchcancel', () => isDragging = false);
+
+            container.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault(); // Prevent scrolling
+                updateSliderPosition(e);
+            }, { passive: false });
+        }
+
+        setupSlider('slider-biotin', 'handle-biotin', 'after-biotin');
+        setupSlider('slider-nidppfcl2', 'handle-nidppfcl2', 'after-nidppfcl2');
+        setupSlider('slider-graphene', 'handle-graphene', 'after-graphene');
+        setupSlider('slider-srtio3', 'handle-srtio3', 'after-srtio3');
+    </script>
+</body>
+</html>
